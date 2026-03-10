@@ -9,6 +9,8 @@ import {
   UtensilsCrossed,
   Zap,
   Target,
+  Scale,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFetch } from '@/hooks/useFetch';
@@ -76,6 +78,7 @@ export default function Dashboard() {
   const [todayNutrition, setTodayNutrition] = useState<DailySummary | null>(null);
   const [recentFood, setRecentFood] = useState<RecentFoodEntry[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(false);
+  const [showWeighInReminder, setShowWeighInReminder] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -83,10 +86,14 @@ export default function Dashboard() {
     Promise.all([
       get<DailySummary>(`/nutrition/daily?date=${todayStr()}`).catch(() => null),
       get<RecentFoodEntry[]>('/nutrition/recent?limit=15').catch(() => []),
-    ]).then(([daily, recent]) => {
+      get<{ date: string; weight_lbs: number }[]>('/nutrition/weight-log?days=7').catch(() => null),
+    ]).then(([daily, recent, weightEntries]) => {
       if (cancelled) return;
       setTodayNutrition(daily);
       setRecentFood(recent);
+      if (weightEntries !== null && weightEntries.length === 0) {
+        setShowWeighInReminder(true);
+      }
     }).finally(() => {
       if (!cancelled) setNutritionLoading(false);
     });
@@ -154,6 +161,27 @@ export default function Dashboard() {
           Here's your snapshot for today.
         </p>
       </div>
+
+      {/* Weigh-in reminder */}
+      {showWeighInReminder && (
+        <div className="flex items-center justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 dark:border-amber-800 dark:bg-amber-950/30">
+          <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
+            <Scale className="h-4 w-4 shrink-0" />
+            <span>
+              Time for your weigh-in!{' '}
+              <Link to="/nutrition/progress" className="font-semibold underline underline-offset-2 hover:no-underline">
+                Let's check your progress →
+              </Link>
+            </span>
+          </div>
+          <button
+            onClick={() => setShowWeighInReminder(false)}
+            className="ml-2 rounded p-0.5 text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-900/50"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Stats — 2x2 grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
