@@ -121,3 +121,96 @@ export interface ApiError {
   error: string;
   details?: string;
 }
+
+// ─── Nutrition ────────────────────────────────────────────────────────────────
+
+export type ActivityLevel = 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
+export type NutritionGoal = 'lose' | 'maintain' | 'bulk';
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+
+export interface NutritionProfile {
+  id: number;
+  user_id: number;
+  height_in: number;
+  weight_lbs: number;
+  age: number;
+  sex: 'male' | 'female';
+  activity_level: ActivityLevel;
+  goal: NutritionGoal;
+  bmr: number;
+  tdee: number;
+  calorie_target: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export interface Food {
+  id: number;
+  user_id: number | null;
+  barcode: string | null;
+  name: string;
+  brand: string | null;
+  serving_size: number;
+  serving_unit: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  source: 'custom' | 'openfoodfacts';
+}
+
+export interface FoodLogEntry {
+  id: number;
+  date: string;
+  meal_type: MealType;
+  food_id: number | null;
+  custom_meal_id: number | null;
+  food_name?: string;
+  servings: number;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  logged_at: string;
+}
+
+export interface DailySummary {
+  date: string;
+  entries: FoodLogEntry[];
+  totals: { calories: number; protein_g: number; carbs_g: number; fat_g: number };
+  targets: { calories: number; protein_g: number; carbs_g: number; fat_g: number } | null;
+}
+
+export interface CustomMeal {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string | null;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+}
+
+export interface WeightEntry {
+  id: number;
+  date: string;
+  weight_lbs: number;
+  notes: string | null;
+}
+
+export interface DayLogSummary {
+  date: string;
+  total_calories: number;
+  total_protein: number;
+  total_carbs: number;
+  total_fat: number;
+  entry_count: number;
+}
+
+export interface NutritionChartData {
+  calorie_history: { date: string; calories: number; target: number }[];
+  weight_trend: { date: string; weight_lbs: number }[];
+  energy_balance: { date: string; consumed: number; tdee: number; balance: number }[];
+}

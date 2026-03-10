@@ -1,11 +1,14 @@
 import { useState, useRef, useEffect } from 'react';
-import { Outlet, NavLink, useNavigate } from 'react-router-dom';
+import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Dumbbell,
   ClipboardList,
-  History,
-  TrendingUp,
+  Apple,
+  BarChart3,
+  UtensilsCrossed,
+  BookOpen,
+  CalendarDays,
   Settings,
   LogOut,
   ChevronDown,
@@ -17,13 +20,51 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTimer } from '@/contexts/TimerContext';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
-const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/exercises', label: 'Exercises', icon: Dumbbell },
-  { to: '/templates', label: 'Templates', icon: ClipboardList },
-  { to: '/history', label: 'History', icon: History },
-  { to: '/progress', label: 'Progress', icon: TrendingUp },
+// ─── Navigation structure ─────────────────────────────────────────────────────
+
+interface NavSection {
+  label: string;
+  icon: typeof LayoutDashboard;
+  to: string; // default route for mobile tap
+  matchPrefix?: string; // highlight mobile icon when path starts with this
+  items: { to: string; label: string; icon: typeof LayoutDashboard; end?: boolean }[];
+}
+
+const dashboardItem = { to: '/', label: 'Dashboard', icon: LayoutDashboard };
+
+const sections: NavSection[] = [
+  {
+    label: 'Workouts',
+    icon: Dumbbell,
+    to: '/exercises',
+    matchPrefix: '/workouts-section', // custom matching below
+    items: [
+      { to: '/exercises', label: 'Exercises', icon: Dumbbell },
+      { to: '/templates', label: 'Templates', icon: ClipboardList },
+      { to: '/stats', label: 'Stats', icon: CalendarDays },
+    ],
+  },
+  {
+    label: 'Nutrition',
+    icon: Apple,
+    to: '/nutrition',
+    matchPrefix: '/nutrition',
+    items: [
+      { to: '/nutrition', label: 'Summary', icon: Apple, end: true },
+      { to: '/nutrition/log', label: 'Food Log', icon: UtensilsCrossed },
+      { to: '/nutrition/meals', label: 'Custom Meals', icon: BookOpen },
+      { to: '/nutrition/progress', label: 'Progress', icon: BarChart3 },
+    ],
+  },
 ];
+
+const workoutPaths = ['/exercises', '/templates', '/stats', '/workout'];
+function isWorkoutPath(pathname: string) {
+  return workoutPaths.some((p) => pathname === p || pathname.startsWith(p + '/'));
+}
+function isNutritionPath(pathname: string) {
+  return pathname.startsWith('/nutrition');
+}
 
 function formatTime(totalSeconds: number) {
   const m = Math.floor(totalSeconds / 60);
@@ -135,25 +176,57 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
         </button>
       </div>
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {navItems.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.to === '/'}
-            title={item.label}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                collapsed ? 'justify-center' : ''
-              } ${
-                isActive
-                  ? 'bg-brand-600/10 text-brand-600 dark:text-brand-400'
-                  : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text)]'
-              }`
-            }
-          >
-            <item.icon className="h-5 w-5 shrink-0" />
-            {!collapsed && <span>{item.label}</span>}
-          </NavLink>
+        {/* Dashboard */}
+        <NavLink
+          to={dashboardItem.to}
+          end
+          title={dashboardItem.label}
+          className={({ isActive }) =>
+            `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+              collapsed ? 'justify-center' : ''
+            } ${
+              isActive
+                ? 'bg-brand-600/10 text-brand-600 dark:text-brand-400'
+                : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text)]'
+            }`
+          }
+        >
+          <dashboardItem.icon className="h-5 w-5 shrink-0" />
+          {!collapsed && <span>{dashboardItem.label}</span>}
+        </NavLink>
+
+        {/* Grouped sections */}
+        {sections.map((section) => (
+          <div key={section.label} className="pt-3">
+            {!collapsed && (
+              <p className="mb-1 px-3 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-tertiary)]">
+                {section.label}
+              </p>
+            )}
+            {collapsed && (
+              <div className="mb-1 h-px bg-[var(--color-border)]" />
+            )}
+            {section.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                title={item.label}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                    collapsed ? 'justify-center' : ''
+                  } ${
+                    isActive
+                      ? 'bg-brand-600/10 text-brand-600 dark:text-brand-400'
+                      : 'text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)] hover:text-[var(--color-text)]'
+                  }`
+                }
+              >
+                <item.icon className="h-5 w-5 shrink-0" />
+                {!collapsed && <span>{item.label}</span>}
+              </NavLink>
+            ))}
+          </div>
         ))}
       </nav>
     </aside>
@@ -161,24 +234,44 @@ function Sidebar({ collapsed, onToggle }: { collapsed: boolean; onToggle: () => 
 }
 
 function MobileNav() {
+  const { pathname } = useLocation();
+
+  const mobileItems = [
+    {
+      to: '/',
+      label: 'Dashboard',
+      icon: LayoutDashboard,
+      isActive: pathname === '/',
+    },
+    {
+      to: '/exercises',
+      label: 'Workouts',
+      icon: Dumbbell,
+      isActive: isWorkoutPath(pathname),
+    },
+    {
+      to: '/nutrition',
+      label: 'Nutrition',
+      icon: Apple,
+      isActive: isNutritionPath(pathname),
+    },
+  ];
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t bg-[var(--color-bg)] md:hidden"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-    >
+    <nav className="shrink-0 border-t bg-[var(--color-bg)] md:hidden">
       <div className="flex"
         style={{
           paddingLeft: 'env(safe-area-inset-left, 0px)',
           paddingRight: 'env(safe-area-inset-right, 0px)',
         }}
       >
-        {navItems.map((item) => (
+        {mobileItems.map((item) => (
           <NavLink
-            key={item.to}
+            key={item.label}
             to={item.to}
-            end={item.to === '/'}
-            className={({ isActive }) =>
-              `flex flex-1 flex-col items-center gap-0.5 py-2 text-[10px] font-medium transition-colors ${
-                isActive
+            className={
+              `flex flex-1 flex-col items-center gap-0.5 py-1.5 text-[10px] font-medium transition-colors ${
+                item.isActive
                   ? 'text-brand-600 dark:text-brand-400'
                   : 'text-[var(--color-text-tertiary)]'
               }`
@@ -197,18 +290,19 @@ export default function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   return (
-    <div className="flex h-[100dvh] flex-col">
+    <div className="flex h-[100dvh] flex-col bg-[var(--color-bg)]">
       {/* Top navbar */}
-      <header className="flex h-14 shrink-0 items-center justify-between border-b bg-[var(--color-bg)] px-4">
+      <header
+        className="flex h-14 shrink-0 items-center justify-between border-b bg-[var(--color-bg)] px-4"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)', height: 'calc(3.5rem + env(safe-area-inset-top, 0px))' }}
+      >
         <img src="/logo_text.png" alt="LiftHub" className="h-8" />
         <UserMenu />
       </header>
 
       <div className="flex flex-1 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(!sidebarCollapsed)} />
-        <main className="flex-1 overflow-y-auto md:pb-0"
-          style={{ paddingBottom: 'calc(4rem + env(safe-area-inset-bottom, 0px))' }}
-        >
+        <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl px-4 py-6">
             <Outlet />
           </div>

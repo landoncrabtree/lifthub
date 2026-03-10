@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, Flag } from 'lucide-react';
 import { cn, parseUTC } from '@/lib/utils';
-import { get, put } from '@/api/client';
+import { get, put, invalidateCache } from '@/api/client';
 import { useTimer } from '@/contexts/TimerContext';
 import type { WorkoutDetail, WorkoutSet } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -32,7 +32,7 @@ export default function ActiveWorkout() {
 
   const [workout, setWorkout] = useState<WorkoutDetail | null>(null);
   const [sets, setSets] = useState<SetRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
   const [finishing, setFinishing] = useState(false);
@@ -40,7 +40,7 @@ export default function ActiveWorkout() {
   // Fetch workout
   useEffect(() => {
     if (!id) return;
-    setLoading(true);
+    if (!workout) setLoading(true);
     get<WorkoutDetail>(`/workouts/${id}`)
       .then((data) => {
         setWorkout(data);
@@ -133,6 +133,7 @@ export default function ActiveWorkout() {
     setFinishing(true);
     try {
       await put(`/workouts/${id}`, { finished: true });
+      invalidateCache('/progress');
       navigate('/history');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to finish workout');
@@ -140,7 +141,7 @@ export default function ActiveWorkout() {
     }
   }
 
-  if (loading) {
+  if (loading && !workout) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-8 w-48" />

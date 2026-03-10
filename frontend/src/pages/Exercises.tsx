@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Dumbbell } from 'lucide-react';
 import { get, post } from '@/api/client';
 import { cn } from '@/lib/utils';
@@ -11,6 +11,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Skeleton } from '@/components/ui/Skeleton';
+import { SectionNav } from '@/components/ui/SectionNav';
+import { workoutNavItems } from '@/lib/navigation';
 
 const MUSCLE_GROUPS: MuscleGroup[] = [
   'chest', 'back', 'shoulders', 'biceps', 'triceps', 'forearms', 'core',
@@ -37,7 +39,7 @@ const equipmentOptions: SelectOption[] = EQUIPMENT_TYPES.map((eq) => ({
 
 export default function Exercises() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [search, setSearch] = useState('');
@@ -51,8 +53,9 @@ export default function Exercises() {
   const [formDescription, setFormDescription] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const initialMount = useRef(true);
+
   const fetchExercises = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams();
@@ -60,6 +63,7 @@ export default function Exercises() {
       if (muscleFilter) params.set('muscle_group', muscleFilter);
       if (equipmentFilter) params.set('equipment', equipmentFilter);
       const query = params.toString();
+      if (exercises.length === 0) setLoading(true);
       const data = await get<Exercise[]>(`/exercises${query ? `?${query}` : ''}`);
       setExercises(data);
     } catch (err) {
@@ -67,9 +71,14 @@ export default function Exercises() {
     } finally {
       setLoading(false);
     }
-  }, [search, muscleFilter, equipmentFilter]);
+  }, [search, muscleFilter, equipmentFilter, exercises.length]);
 
   useEffect(() => {
+    if (initialMount.current) {
+      initialMount.current = false;
+      fetchExercises();
+      return;
+    }
     const timer = setTimeout(fetchExercises, 300);
     return () => clearTimeout(timer);
   }, [fetchExercises]);
@@ -97,6 +106,7 @@ export default function Exercises() {
 
   return (
     <div className="space-y-6">
+      <SectionNav items={workoutNavItems} />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Exercises</h1>
         <Button onClick={() => setShowModal(true)} leftIcon={<Plus className="h-4 w-4" />}>

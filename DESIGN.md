@@ -77,3 +77,30 @@ API responses from SQL JOINs return flat fields (e.g. `exercise_name`, `muscle_g
 ### Stale Workout Pruning
 
 The `GET /workouts` endpoint runs a lightweight UPDATE before querying, closing any workout older than 24 hours with `finished_at` set to 1 hour after `started_at`. This prevents orphaned in-progress workouts from accumulating.
+
+### API Response Cache
+
+A client-side cache in `api/client.ts` makes page navigation near-instant by eliminating redundant network requests.
+
+**How it works:**
+
+- All `get()` calls go through a `Map`-based cache with a 30-second TTL.
+- **Cache hit (fresh)**: Returns cached data synchronously as a resolved Promise — no network request.
+- **Cache hit (stale)**: Returns stale data immediately, then refreshes in the background. Pages render instantly with current data; if the background fetch returns new data, the next navigation will reflect it.
+- **Cache miss**: Fires a network request normally; subsequent calls within 30s are served from cache.
+- **Deduplication**: Multiple components requesting the same endpoint simultaneously share a single in-flight request.
+- **Error fallback**: On network errors, stale cached data is returned rather than throwing.
+
+**Prefetching:**
+
+On login and app load, `prefetchAll()` fires parallel `get()` calls for all commonly-visited endpoints (`/exercises`, `/templates`, `/workouts`, `/progress/summary`, `/nutrition/profile`, `/nutrition/log?days=30`, `/nutrition/charts`, `/foods/custom-meals`). By the time the user navigates to any page, the data is already cached.
+
+**Cache invalidation:**
+
+- `post()`, `put()`, and `del()` automatically invalidate all cached entries matching the parent path prefix *after* the mutation succeeds (e.g. `PUT /workouts/5` invalidates all `/workouts*` entries).
+- `invalidateCache()` is exported for manual invalidation when a mutation affects unrelated endpoints (e.g. finishing a workout also invalidates `/progress`).
+- Full cache is cleared on logout.
+
+**Frontend loading guard pattern:**
+
+Pages use `if (loading && !data)` instead of `if (loading)` for skeleton guards. This prevents a loading flash when cached data resolves instantly — skeletons only appear on truly cold loads (first visit after login).

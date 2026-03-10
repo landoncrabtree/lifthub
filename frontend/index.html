@@ -12,6 +12,9 @@
   </head>
   <body class="bg-white dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100">
     <div id="root"></div>
+    <!-- Emscripten WASM glue for barcode scanner (must load before module) -->
+    <script>var Module = { locateFile: function(path) { return '/' + path; } };</script>
+    <script src="/a.out.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

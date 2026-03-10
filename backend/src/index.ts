@@ -8,6 +8,8 @@ import exerciseRoutes from './routes/exercises.js';
 import templateRoutes from './routes/templates.js';
 import workoutRoutes from './routes/workouts.js';
 import progressRoutes from './routes/progress.js';
+import foodsRoutes from './routes/foods.js';
+import nutritionRoutes from './routes/nutrition.js';
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3001;
@@ -26,6 +28,8 @@ app.use('/api/exercises', exerciseRoutes);
 app.use('/api/templates', templateRoutes);
 app.use('/api/workouts', workoutRoutes);
 app.use('/api/progress', progressRoutes);
+app.use('/api/foods', foodsRoutes);
+app.use('/api/nutrition', nutritionRoutes);
 
 // Health check
 app.get('/api/health', (_req, res) => {

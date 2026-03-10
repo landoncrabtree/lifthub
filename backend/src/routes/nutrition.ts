@@ -1,0 +1,376 @@
+import { Router, Request, Response } from 'express';
+import db from '../db/connection.js';
+import { authMiddleware } from '../middleware/auth.js';
+
+const router = Router();
+router.use(authMiddleware);
+
+// --- Helpers ---
+
+const ACTIVITY_MULTIPLIERS: Record<string, number> = {
+  sedentary: 1.2,
+  light: 1.375,
+  moderate: 1.55,
+  active: 1.725,
+  very_active: 1.9,
+};
+
+const GOAL_OFFSETS: Record<string, number> = {
+  lose: -500,
+  maintain: 0,
+  bulk: 300,
+};
+
+const MACRO_SPLITS: Record<string, { protein: number; carbs: number; fat: number }> = {
+  lose: { protein: 0.4, carbs: 0.3, fat: 0.3 },
+  maintain: { protein: 0.3, carbs: 0.4, fat: 0.3 },
+  bulk: { protein: 0.3, carbs: 0.45, fat: 0.25 },
+};
+
+function computeNutrition(params: {
+  height_in: number;
+  weight_lbs: number;
+  age: number;
+  sex: string;
+  activity_level: string;
+  goal: string;
+}) {
+  const weight_kg = params.weight_lbs / 2.205;
+  const height_cm = params.height_in * 2.54;
+
+  const bmr =
+    params.sex === 'male'
+      ? 10 * weight_kg + 6.25 * height_cm - 5 * params.age + 5
+      : 10 * weight_kg + 6.25 * height_cm - 5 * params.age - 161;
+
+  const tdee = bmr * (ACTIVITY_MULTIPLIERS[params.activity_level] ?? 1.2);
+  const calorie_target = Math.round(tdee + (GOAL_OFFSETS[params.goal] ?? 0));
+
+  const split = MACRO_SPLITS[params.goal] ?? MACRO_SPLITS.maintain;
+  const protein_g = Math.round((calorie_target * split.protein) / 4);
+  const carbs_g = Math.round((calorie_target * split.carbs) / 4);
+  const fat_g = Math.round((calorie_target * split.fat) / 9);
+
+  return { bmr: Math.round(bmr * 10) / 10, tdee: Math.round(tdee * 10) / 10, calorie_target, protein_g, carbs_g, fat_g };
+}
+
+// --- Profile Routes ---
+
+// POST /onboard — Create nutrition profile
+router.post('/onboard', (req: Request, res: Response) => {
+  const { height_ft, height_in: inchPart, weight_lbs, age, sex, activity_level, goal } = req.body;
+
+  if (height_ft == null || inchPart == null || !weight_lbs || !age || !sex || !activity_level || !goal) {
+    res.status(400).json({ error: 'All fields are required: height_ft, height_in, weight_lbs, age, sex, activity_level, goal' });
+    return;
+  }
+
+  const height_in = Number(height_ft) * 12 + Number(inchPart);
+  const computed = computeNutrition({ height_in, weight_lbs, age, sex, activity_level, goal });
+
+  const result = db.prepare(
+    `INSERT INTO nutrition_profiles
+       (user_id, height_in, weight_lbs, age, sex, activity_level, goal, bmr, tdee, calorie_target, protein_g, carbs_g, fat_g)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    req.userId!, height_in, weight_lbs, age, sex, activity_level, goal,
+    computed.bmr, computed.tdee, computed.calorie_target, computed.protein_g, computed.carbs_g, computed.fat_g
+  );
+
+  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(profile);
+});
+
+// GET /profile — Get current nutrition profile
+router.get('/profile', (req: Request, res: Response) => {
+  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!);
+
+  if (!profile) {
+    res.status(404).json({ error: 'Nutrition profile not found' });
+    return;
+  }
+
+  res.json(profile);
+});
+
+// PUT /profile — Update nutrition profile
+router.put('/profile', (req: Request, res: Response) => {
+  const existing = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!) as {
+    height_in: number; weight_lbs: number; age: number; sex: string; activity_level: string; goal: string;
+  } | undefined;
+
+  if (!existing) {
+    res.status(404).json({ error: 'Nutrition profile not found. Use POST /onboard first.' });
+    return;
+  }
+
+  const { height_ft, height_in: inchPart, weight_lbs, age, sex, activity_level, goal } = req.body;
+
+  const height_in =
+    height_ft != null && inchPart != null
+      ? Number(height_ft) * 12 + Number(inchPart)
+      : existing.height_in;
+
+  const merged = {
+    height_in,
+    weight_lbs: weight_lbs ?? existing.weight_lbs,
+    age: age ?? existing.age,
+    sex: sex ?? existing.sex,
+    activity_level: activity_level ?? existing.activity_level,
+    goal: goal ?? existing.goal,
+  };
+
+  const computed = computeNutrition(merged);
+
+  db.prepare(
+    `UPDATE nutrition_profiles SET
+       height_in = ?, weight_lbs = ?, age = ?, sex = ?, activity_level = ?, goal = ?,
+       bmr = ?, tdee = ?, calorie_target = ?, protein_g = ?, carbs_g = ?, fat_g = ?,
+       updated_at = CURRENT_TIMESTAMP
+     WHERE user_id = ?`
+  ).run(
+    merged.height_in, merged.weight_lbs, merged.age, merged.sex, merged.activity_level, merged.goal,
+    computed.bmr, computed.tdee, computed.calorie_target, computed.protein_g, computed.carbs_g, computed.fat_g,
+    req.userId!
+  );
+
+  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!);
+  res.json(profile);
+});
+
+// --- Daily Summary ---
+
+// GET /daily?date=YYYY-MM-DD — Food log entries + totals for a date
+router.get('/daily', (req: Request, res: Response) => {
+  const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+
+  const entries = db.prepare(
+    `SELECT fl.*, COALESCE(f.name, cm.name) as food_name
+     FROM food_log fl
+     LEFT JOIN foods f ON f.id = fl.food_id
+     LEFT JOIN custom_meals cm ON cm.id = fl.custom_meal_id
+     WHERE fl.user_id = ? AND fl.date = ?
+     ORDER BY fl.logged_at`
+  ).all(req.userId!, date) as Array<{
+    calories: number; protein_g: number; carbs_g: number; fat_g: number;
+  }>;
+
+  const totals = entries.reduce(
+    (acc, e) => ({
+      calories: acc.calories + e.calories,
+      protein_g: acc.protein_g + e.protein_g,
+      carbs_g: acc.carbs_g + e.carbs_g,
+      fat_g: acc.fat_g + e.fat_g,
+    }),
+    { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
+  );
+
+  const profile = db.prepare(
+    'SELECT calorie_target, protein_g, carbs_g, fat_g FROM nutrition_profiles WHERE user_id = ?'
+  ).get(req.userId!) as { calorie_target: number; protein_g: number; carbs_g: number; fat_g: number } | undefined;
+
+  const targets = profile
+    ? { calories: profile.calorie_target, protein_g: profile.protein_g, carbs_g: profile.carbs_g, fat_g: profile.fat_g }
+    : null;
+
+  res.json({ date, entries, totals, targets });
+});
+
+// --- Food Log ---
+
+// GET /log?days=30 — Food log history grouped by day
+router.get('/log', (req: Request, res: Response) => {
+  const days = Number(req.query.days) || 30;
+
+  const rows = db.prepare(
+    `SELECT date,
+            SUM(calories) as total_calories,
+            SUM(protein_g) as total_protein,
+            SUM(carbs_g) as total_carbs,
+            SUM(fat_g) as total_fat,
+            COUNT(*) as entry_count
+     FROM food_log
+     WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
+     GROUP BY date
+     ORDER BY date DESC`
+  ).all(req.userId!, days);
+
+  res.json(rows);
+});
+
+// GET /recent?limit=10 — Recent individual food log entries
+router.get('/recent', (req: Request, res: Response) => {
+  const limit = Math.min(Number(req.query.limit) || 10, 50);
+
+  const entries = db.prepare(
+    `SELECT fl.id, fl.date, fl.meal_type, fl.calories, fl.protein_g, fl.carbs_g, fl.fat_g, fl.logged_at,
+            COALESCE(f.name, cm.name) as food_name
+     FROM food_log fl
+     LEFT JOIN foods f ON f.id = fl.food_id
+     LEFT JOIN custom_meals cm ON cm.id = fl.custom_meal_id
+     WHERE fl.user_id = ?
+     ORDER BY fl.logged_at DESC
+     LIMIT ?`
+  ).all(req.userId!, limit);
+
+  res.json(entries);
+});
+
+// POST /log — Log a food entry
+router.post('/log', (req: Request, res: Response) => {
+  const { date, meal_type, food_id, custom_meal_id, servings } = req.body;
+
+  if (!date || !meal_type || (!food_id && !custom_meal_id)) {
+    res.status(400).json({ error: 'date, meal_type, and either food_id or custom_meal_id are required' });
+    return;
+  }
+
+  const s = servings ?? 1;
+  let calories = 0;
+  let protein_g = 0;
+  let carbs_g = 0;
+  let fat_g = 0;
+
+  if (food_id) {
+    const food = db.prepare('SELECT * FROM foods WHERE id = ?').get(food_id) as {
+      calories: number; protein_g: number; carbs_g: number; fat_g: number;
+    } | undefined;
+
+    if (!food) {
+      res.status(404).json({ error: 'Food not found' });
+      return;
+    }
+
+    calories = food.calories * s;
+    protein_g = food.protein_g * s;
+    carbs_g = food.carbs_g * s;
+    fat_g = food.fat_g * s;
+  } else if (custom_meal_id) {
+    const meal = db.prepare(
+      'SELECT calories, protein_g, carbs_g, fat_g FROM custom_meals WHERE id = ?'
+    ).get(custom_meal_id) as {
+      calories: number; protein_g: number; carbs_g: number; fat_g: number;
+    } | undefined;
+
+    if (!meal) {
+      res.status(404).json({ error: 'Custom meal not found' });
+      return;
+    }
+
+    calories = meal.calories * s;
+    protein_g = meal.protein_g * s;
+    carbs_g = meal.carbs_g * s;
+    fat_g = meal.fat_g * s;
+  }
+
+  const result = db.prepare(
+    `INSERT INTO food_log (user_id, date, meal_type, food_id, custom_meal_id, servings, calories, protein_g, carbs_g, fat_g)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    req.userId!, date, meal_type,
+    food_id || null, custom_meal_id || null,
+    s,
+    Math.round(calories * 10) / 10,
+    Math.round(protein_g * 10) / 10,
+    Math.round(carbs_g * 10) / 10,
+    Math.round(fat_g * 10) / 10
+  );
+
+  const entry = db.prepare('SELECT * FROM food_log WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(entry);
+});
+
+// DELETE /log/:id — Delete a food log entry
+router.delete('/log/:id', (req: Request, res: Response) => {
+  const result = db.prepare('DELETE FROM food_log WHERE id = ? AND user_id = ?').run(req.params.id, req.userId!);
+
+  if (result.changes === 0) {
+    res.status(404).json({ error: 'Food log entry not found' });
+    return;
+  }
+
+  res.status(204).send();
+});
+
+// --- Weight Log ---
+
+// GET /weight-log?days=90 — Get weight entries
+router.get('/weight-log', (req: Request, res: Response) => {
+  const days = Number(req.query.days) || 90;
+
+  const entries = db.prepare(
+    `SELECT * FROM weight_log
+     WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
+     ORDER BY date DESC`
+  ).all(req.userId!, days);
+
+  res.json(entries);
+});
+
+// POST /weight-log — Log weight
+router.post('/weight-log', (req: Request, res: Response) => {
+  const { date, weight_lbs, notes } = req.body;
+
+  if (!date || weight_lbs == null) {
+    res.status(400).json({ error: 'date and weight_lbs are required' });
+    return;
+  }
+
+  db.prepare(
+    `INSERT OR REPLACE INTO weight_log (user_id, date, weight_lbs, notes)
+     VALUES (?, ?, ?, ?)`
+  ).run(req.userId!, date, weight_lbs, notes || null);
+
+  const entry = db.prepare('SELECT * FROM weight_log WHERE user_id = ? AND date = ?').get(req.userId!, date);
+  res.json(entry);
+});
+
+// --- Charts ---
+
+// GET /charts — Chart data for calorie history, weight trend, energy balance
+router.get('/charts', (req: Request, res: Response) => {
+  const userId = req.userId!;
+
+  // Last 30 days of daily calorie totals
+  const calorieRows = db.prepare(
+    `SELECT date, SUM(calories) as calories
+     FROM food_log
+     WHERE user_id = ? AND date >= date('now', '-30 days')
+     GROUP BY date
+     ORDER BY date`
+  ).all(userId) as Array<{ date: string; calories: number }>;
+
+  // Get profile for target/TDEE
+  const profile = db.prepare(
+    'SELECT calorie_target, tdee FROM nutrition_profiles WHERE user_id = ?'
+  ).get(userId) as { calorie_target: number; tdee: number } | undefined;
+
+  const target = profile?.calorie_target ?? null;
+  const tdee = profile?.tdee ?? null;
+
+  const calorie_history = calorieRows.map((r) => ({
+    date: r.date,
+    calories: r.calories,
+    target,
+  }));
+
+  // Weight trend
+  const weight_trend = db.prepare(
+    `SELECT date, weight_lbs
+     FROM weight_log
+     WHERE user_id = ? AND date >= date('now', '-90 days')
+     ORDER BY date`
+  ).all(userId) as Array<{ date: string; weight_lbs: number }>;
+
+  // Energy balance (consumed vs TDEE)
+  const energy_balance = calorieRows.map((r) => ({
+    date: r.date,
+    consumed: r.calories,
+    tdee,
+    balance: tdee != null ? Math.round(r.calories - tdee) : null,
+  }));
+
+  res.json({ calorie_history, weight_trend, energy_balance });
+});
+
+export default router;

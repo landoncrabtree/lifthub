@@ -10,7 +10,7 @@ interface UseFetchResult<T> {
 
 export function useFetch<T>(path: string | null): UseFetchResult<T> {
   const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(!!path);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const fetchData = useCallback(async (fetchPath: string) => {

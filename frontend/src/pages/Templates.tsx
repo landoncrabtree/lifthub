@@ -8,6 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { SectionNav } from '@/components/ui/SectionNav';
+import { workoutNavItems } from '@/lib/navigation';
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr).toLocaleDateString(undefined, {
@@ -32,7 +34,7 @@ export default function Templates() {
     }
   }
 
-  if (loading) {
+  if (loading && !templates) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -64,6 +66,7 @@ export default function Templates() {
 
   return (
     <div className="space-y-6">
+      <SectionNav items={workoutNavItems} />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Templates</h1>
         <Button onClick={() => navigate('/templates/new')} leftIcon={<Plus className="h-4 w-4" />}>
@@ -76,11 +79,6 @@ export default function Templates() {
           icon={<FileText className="h-6 w-6" />}
           title="No templates yet"
           description="Create a template to get started with your workouts"
-          action={
-            <Button onClick={() => navigate('/templates/new')} leftIcon={<Plus className="h-4 w-4" />}>
-              New Template
-            </Button>
-          }
         />
       )}
 

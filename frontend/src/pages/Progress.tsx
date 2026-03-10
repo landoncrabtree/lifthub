@@ -112,7 +112,7 @@ export default function Progress() {
       <h1 className="text-2xl font-bold text-[var(--color-text)]">Progress</h1>
 
       {/* Summary Cards */}
-      {summaryLoading ? (
+      {summaryLoading && !summary ? (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {Array.from({ length: 3 }).map((_, i) => (
             <Card key={i}>

@@ -1,11 +1,24 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import path from 'path';
 
 export default defineConfig({
   plugins: [
     react(),
+    viteStaticCopy({
+      targets: [
+        {
+          src: 'node_modules/web-wasm-barcode-reader/public/a.out.js',
+          dest: '.',
+        },
+        {
+          src: 'node_modules/web-wasm-barcode-reader/public/a.out.wasm',
+          dest: '.',
+        },
+      ],
+    }),
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['icons/icon.svg'],

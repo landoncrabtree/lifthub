@@ -9,8 +9,12 @@ import Exercises from '@/pages/Exercises';
 import Templates from '@/pages/Templates';
 import TemplateEditor from '@/pages/TemplateEditor';
 import ActiveWorkout from '@/pages/ActiveWorkout';
-import History from '@/pages/History';
-import Progress from '@/pages/Progress';
+import Stats from '@/pages/Stats';
+import NutritionOnboarding from '@/pages/NutritionOnboarding';
+import NutritionDashboard from '@/pages/NutritionDashboard';
+import NutritionCharts from '@/pages/NutritionCharts';
+import FoodLog from '@/pages/FoodLog';
+import CustomMeals from '@/pages/CustomMeals';
 import { type ReactNode } from 'react';
 
 function ProtectedRoute({ children }: { children: ReactNode }) {
@@ -69,8 +73,12 @@ export default function App() {
         <Route path="templates" element={<Templates />} />
         <Route path="templates/:id" element={<TemplateEditor />} />
         <Route path="workout/:id" element={<ActiveWorkout />} />
-        <Route path="history" element={<History />} />
-        <Route path="progress" element={<Progress />} />
+        <Route path="stats" element={<Stats />} />
+        <Route path="nutrition" element={<NutritionDashboard />} />
+        <Route path="nutrition/onboard" element={<NutritionOnboarding />} />
+        <Route path="nutrition/log" element={<FoodLog />} />
+        <Route path="nutrition/meals" element={<CustomMeals />} />
+        <Route path="nutrition/progress" element={<NutritionCharts />} />
         <Route path="settings" element={<Settings />} />
       </Route>
 

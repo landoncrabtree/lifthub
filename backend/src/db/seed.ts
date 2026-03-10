@@ -121,7 +121,123 @@ const EXERCISES = [
   { name: 'Battle Ropes', muscle_group: 'cardio', equipment: 'other', description: 'Battle rope exercises' },
 ];
 
-export function seed() {
+// [name, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g]
+const FOODS: [string, number, string, number, number, number, number][] = [
+  // Proteins
+  ['Chicken Breast (cooked)',      0.25, 'lb',   186, 35.0,  0.0,  4.1],
+  ['Chicken Thigh (cooked)',       0.25, 'lb',   236, 29.4,  0.0, 12.3],
+  ['Ground Beef 80/20 (cooked)',   0.25, 'lb',   287, 28.8,  0.0, 18.1],
+  ['Ground Beef 90/10 (cooked)',   0.25, 'lb',   221, 30.8,  0.0,  9.8],
+  ['Ground Turkey (cooked)',       0.25, 'lb',   229, 31.0,  0.0, 11.1],
+  ['Turkey Breast (cooked)',       0.25, 'lb',   153, 34.0,  0.0,  0.8],
+  ['Salmon (cooked)',              0.25, 'lb',   235, 23.1,  0.0, 15.1],
+  ['Tuna (canned in water)',       0.25, 'lb',   131, 28.8,  0.0,  0.9],
+  ['Shrimp (cooked)',              0.25, 'lb',   112, 27.1,  0.2,  0.3],
+  ['Pork Chop (cooked)',           0.25, 'lb',   261, 29.0,  0.0, 15.3],
+  ['Pork Tenderloin (cooked)',     0.25, 'lb',   162, 29.6,  0.0,  4.0],
+  ['Bacon (cooked)',                  1, 'slice', 43,  3.0,  0.1,  3.3],
+  ['Egg',                             1, 'large', 72,  6.3,  0.4,  4.8],
+  ['Egg Whites',                      1, 'large', 17,  3.6,  0.2,  0.1],
+  ['Tilapia (cooked)',             0.25, 'lb',   145, 29.6,  0.0,  3.1],
+  ['Cod (cooked)',                 0.25, 'lb',    93, 20.1,  0.0,  0.8],
+  ['Steak, Sirloin (cooked)',      0.25, 'lb',   207, 30.7,  0.0,  8.4],
+  ['Steak, Ribeye (cooked)',       0.25, 'lb',   306, 28.0,  0.0, 20.6],
+  ['Lamb (cooked)',                0.25, 'lb',   291, 28.8,  0.0, 18.6],
+  ['Tofu (firm)',                  0.25, 'lb',    86,  9.2,  2.1,  5.4],
+  ['Tempeh',                       0.25, 'lb',   217, 22.9,  8.6, 12.2],
+
+  // Dairy
+  ['Whole Milk',                      1, 'cup',   149,  8.0, 12.0,  8.0],
+  ['2% Milk',                         1, 'cup',   122,  8.1, 11.7,  4.8],
+  ['Skim Milk',                       1, 'cup',    83,  8.3, 12.2,  0.2],
+  ['Greek Yogurt (plain, nonfat)', 0.75, 'cup',   100, 17.3,  6.1,  0.7],
+  ['Greek Yogurt (plain, whole)',  0.75, 'cup',   165, 15.0,  7.0,  9.0],
+  ['Cheddar Cheese',               0.25, 'cup',   113,  7.1,  0.4,  9.3],
+  ['Mozzarella Cheese',            0.25, 'cup',    85,  6.3,  0.7,  6.3],
+  ['Cottage Cheese (low-fat)',       0.5, 'cup',    92, 12.4,  4.9,  2.6],
+  ['Cream Cheese',                    2, 'tbsp',   99,  1.7,  1.6,  9.8],
+  ['Butter',                          1, 'tbsp', 102,  0.1,  0.0, 11.5],
+  ['Heavy Cream',                     1, 'tbsp',  51,  0.4,  0.4,  5.4],
+  ['Whey Protein (generic)',          1, 'scoop',120, 24.0,  3.0,  1.5],
+
+  // Grains / Carbs
+  ['White Rice (cooked)',           0.25, 'cup',   65,  1.4, 14.1,  0.2],
+  ['Brown Rice (cooked)',           0.25, 'cup',   62,  1.4, 12.8,  0.5],
+  ['Quinoa (cooked)',               0.25, 'cup',   55,  2.0,  9.8,  0.9],
+  ['Oats (dry)',                    0.25, 'cup',   76,  2.7, 13.7,  1.3],
+  ['Whole Wheat Bread',               1, 'slice',  81,  4.0, 13.8,  1.1],
+  ['White Bread',                     1, 'slice',  75,  2.7, 14.3,  0.9],
+  ['Pasta (cooked)',                  1, 'oz',     37,  1.4,  7.2,  0.3],
+  ['Sweet Potato (raw)',            0.25, 'lb',    97,  1.8, 22.7,  0.1],
+  ['Russet Potato (raw)',           0.25, 'lb',    89,  2.4, 19.8,  0.1],
+  ['Tortilla (flour, 8")',            1, 'tortilla', 146, 3.8, 24.6, 3.6],
+  ['Tortilla (corn, 6")',             1, 'tortilla',  52, 1.4, 10.7, 0.7],
+  ['Bagel (plain)',                   1, 'bagel', 270,  9.0, 53.0,  1.6],
+  ['English Muffin',                  1, 'muffin', 132,  4.4, 26.2,  1.0],
+
+  // Fruits
+  ['Banana',                          1, 'medium',105, 1.3, 27.0,  0.4],
+  ['Apple',                           1, 'medium', 95, 0.5, 25.1,  0.3],
+  ['Strawberries',                 0.25, 'cup',    13, 0.3,  3.2,  0.1],
+  ['Blueberries',                  0.25, 'cup',    21, 0.3,  5.4,  0.1],
+  ['Orange',                          1, 'medium', 62, 1.2, 15.4,  0.2],
+  ['Grapes',                       0.25, 'cup',    26, 0.3,  6.9,  0.1],
+  ['Watermelon',                   0.25, 'cup',    11, 0.2,  2.9,  0.1],
+  ['Avocado',                      0.25, 'avocado',54, 0.7,  2.9,  5.0],
+  ['Mango',                        0.25, 'cup',    25, 0.3,  6.2,  0.2],
+  ['Pineapple',                    0.25, 'cup',    21, 0.2,  5.4,  0.0],
+
+  // Vegetables
+  ['Broccoli',                     0.25, 'cup',    8, 0.7,  1.5,  0.1],
+  ['Spinach (raw)',                    1, 'cup',    7, 0.9,  1.1,  0.1],
+  ['Kale (raw)',                       1, 'cup',   33, 2.9,  5.9,  0.6],
+  ['Green Beans',                  0.25, 'cup',    9, 0.5,  2.0,  0.0],
+  ['Carrots (raw)',                    1, 'medium',25, 0.6,  5.8,  0.1],
+  ['Bell Pepper (raw)',            0.25, 'medium', 8, 0.3,  1.5,  0.1],
+  ['Tomato (raw)',                 0.25, 'medium', 6, 0.3,  1.2,  0.1],
+  ['Cucumber (raw)',               0.25, 'medium', 6, 0.3,  1.4,  0.0],
+  ['Cauliflower',                  0.25, 'cup',    7, 0.5,  1.3,  0.1],
+  ['Zucchini (raw)',               0.25, 'medium', 8, 0.6,  1.5,  0.1],
+  ['Asparagus',                       4, 'spear', 13, 1.4,  2.5,  0.1],
+  ['Mushrooms (white, raw)',       0.25, 'cup',    4, 0.5,  0.5,  0.0],
+  ['Onion (raw)',                  0.25, 'medium', 11, 0.3,  2.5,  0.0],
+  ['Garlic (raw)',                    1, 'clove',  4, 0.2,  1.0,  0.0],
+  ['Corn (sweet, cooked)',         0.25, 'cup',   33, 1.2,  7.2,  0.5],
+  ['Peas (green, cooked)',         0.25, 'cup',   30, 1.9,  5.6,  0.1],
+  ['Lettuce, Romaine',                1, 'cup',    8, 0.6,  1.5,  0.1],
+  ['Celery (raw)',                    1, 'stalk',  6, 0.3,  1.2,  0.1],
+  ['Cabbage (raw)',                0.25, 'cup',    4, 0.2,  1.0,  0.0],
+
+  // Legumes / Nuts
+  ['Black Beans (cooked)',         0.25, 'cup',    57, 3.8, 10.2,  0.2],
+  ['Pinto Beans (cooked)',        0.25, 'cup',    61, 3.9, 11.3,  0.3],
+  ['Chickpeas (cooked)',          0.25, 'cup',    71, 3.8, 11.8,  1.1],
+  ['Lentils (cooked)',            0.25, 'cup',    58, 4.5, 10.1,  0.2],
+  ['Peanut Butter',                   1, 'tbsp',  94, 3.6,  3.5,  8.0],
+  ['Almond Butter',                   1, 'tbsp',  98, 3.4,  3.0,  8.9],
+  ['Almonds',                     0.25, 'cup',   164, 6.0,  6.1, 14.2],
+  ['Walnuts',                     0.25, 'cup',   185, 4.3,  3.9, 18.5],
+  ['Cashews',                     0.25, 'cup',   157, 5.2,  8.6, 12.4],
+
+  // Oils / Condiments
+  ['Olive Oil',                       1, 'tbsp', 119, 0.0,  0.0, 13.5],
+  ['Coconut Oil',                     1, 'tbsp', 121, 0.0,  0.0, 13.5],
+  ['Honey',                           1, 'tbsp',  64, 0.1, 17.3,  0.0],
+  ['Maple Syrup',                     1, 'tbsp',  52, 0.0, 13.4,  0.0],
+  ['Soy Sauce',                       1, 'tbsp',   9, 0.9,  1.0,  0.0],
+  ['Ketchup',                         1, 'tbsp',  20, 0.2,  5.3,  0.0],
+  ['Mustard (yellow)',                 1, 'tsp',    3, 0.2,  0.3,  0.2],
+  ['Mayonnaise',                      1, 'tbsp',  94, 0.1,  0.1, 10.3],
+  ['Salsa',                           2, 'tbsp',  10, 0.5,  2.2,  0.1],
+  ['Ranch Dressing',                  2, 'tbsp', 129, 0.4,  1.8, 13.4],
+
+  // Other
+  ['White Sugar',                     1, 'tsp',   16, 0.0,  4.2,  0.0],
+  ['Brown Sugar',                     1, 'tsp',   17, 0.0,  4.5,  0.0],
+  ['Dark Chocolate (70-85%)',        28, 'g',    170, 2.2, 13.0, 12.0],
+];
+
+function seedExercises() {
   const count = db.prepare('SELECT COUNT(*) as n FROM exercises WHERE user_id IS NULL').get() as { n: number };
   if (count.n > 0) {
     console.log(`Seed skipped: ${count.n} built-in exercises already exist`);
@@ -140,4 +256,30 @@ export function seed() {
 
   insertMany();
   console.log(`Seeded ${EXERCISES.length} exercises`);
+}
+
+export function seedFoods() {
+  const count = db.prepare("SELECT COUNT(*) as n FROM foods WHERE source = 'usda'").get() as { n: number };
+  if (count.n > 0) {
+    console.log(`Seed skipped: ${count.n} USDA foods already exist`);
+    return;
+  }
+
+  const insert = db.prepare(
+    'INSERT INTO foods (user_id, barcode, name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+  );
+
+  const insertMany = db.transaction(() => {
+    for (const [name, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g] of FOODS) {
+      insert.run(name, 'USDA', serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, 'usda');
+    }
+  });
+
+  insertMany();
+  console.log(`Seeded ${FOODS.length} USDA foods`);
+}
+
+export function seed() {
+  seedExercises();
+  seedFoods();
 }

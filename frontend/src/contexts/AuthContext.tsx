@@ -12,6 +12,8 @@ import {
   clearTokens,
   getAccessToken,
   setOnAuthError,
+  prefetchAll,
+  invalidateCache,
   post,
   get,
 } from '@/api/client';
@@ -32,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     clearTokens();
+    invalidateCache();
     setUser(null);
   }, []);
 
@@ -41,7 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const token = getAccessToken();
     if (token) {
       get<User>('/auth/me')
-        .then(setUser)
+        .then((u) => { setUser(u); prefetchAll(); })
         .catch(() => clearTokens())
         .finally(() => setLoading(false));
     } else {
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setTokens(data);
     setUser(data.user);
+    prefetchAll();
   };
 
   const register = async (
@@ -70,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     setTokens(data);
     setUser(data.user);
+    prefetchAll();
   };
 
   return (

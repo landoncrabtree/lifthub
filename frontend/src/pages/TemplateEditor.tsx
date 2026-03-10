@@ -272,7 +272,7 @@ export default function TemplateEditor() {
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  const [loading, setLoading] = useState(!isNew);
+  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState('');
@@ -293,7 +293,7 @@ export default function TemplateEditor() {
 
   useEffect(() => {
     if (isNew) return;
-    setLoading(true);
+    if (!name) setLoading(true);
     get<Template>(`/templates/${id}`)
       .then((t) => {
         setName(t.name);

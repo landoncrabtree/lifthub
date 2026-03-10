@@ -89,11 +89,105 @@ export async function api<T = unknown>(
   return res.json();
 }
 
+// ─── Response cache ──────────────────────────────────────────────────────────
+const cache = new Map<string, { data: unknown; ts: number }>();
+const CACHE_TTL = 30_000; // 30s — stale data served instantly, refresh in background
+const inflight = new Map<string, Promise<unknown>>();
+
+function getCached<T>(path: string): T | undefined {
+  const entry = cache.get(path);
+  if (!entry) return undefined;
+  return entry.data as T;
+}
+
+function setCached(path: string, data: unknown) {
+  cache.set(path, { data, ts: Date.now() });
+}
+
+function isStale(path: string): boolean {
+  const entry = cache.get(path);
+  if (!entry) return true;
+  return Date.now() - entry.ts > CACHE_TTL;
+}
+
+export function invalidateCache(pathPrefix?: string) {
+  if (!pathPrefix) { cache.clear(); return; }
+  for (const key of cache.keys()) {
+    if (key.startsWith(pathPrefix)) cache.delete(key);
+  }
+}
+
+// Prefetch common endpoints on app load
+const PREFETCH_PATHS = [
+  '/exercises',
+  '/templates',
+  '/workouts',
+  '/progress/summary',
+  '/nutrition/profile',
+  '/nutrition/log?days=30',
+  '/nutrition/charts',
+  '/foods/custom-meals',
+];
+
+export function prefetchAll() {
+  for (const path of PREFETCH_PATHS) {
+    if (!cache.has(path)) {
+      get(path).catch(() => {}); // fire-and-forget
+    }
+  }
+}
+
 // Convenience methods
-export const get = <T>(path: string) => api<T>(path);
-export const post = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: 'POST', body: JSON.stringify(body) });
-export const put = <T>(path: string, body: unknown) =>
-  api<T>(path, { method: 'PUT', body: JSON.stringify(body) });
-export const del = <T>(path: string) =>
-  api<T>(path, { method: 'DELETE' });
+export const get = <T>(path: string): Promise<T> => {
+  const cached = getCached<T>(path);
+
+  // Return cached immediately if fresh
+  if (cached !== undefined && !isStale(path)) {
+    return Promise.resolve(cached);
+  }
+
+  // Deduplicate inflight requests
+  const existing = inflight.get(path);
+  if (existing) return existing as Promise<T>;
+
+  const request = api<T>(path).then((data) => {
+    setCached(path, data);
+    inflight.delete(path);
+    return data;
+  }).catch((err) => {
+    inflight.delete(path);
+    // Return stale cache on error if available
+    if (cached !== undefined) return cached;
+    throw err;
+  });
+
+  inflight.set(path, request);
+
+  // If we have stale data, return it immediately and refresh in background
+  if (cached !== undefined) {
+    return Promise.resolve(cached);
+  }
+
+  return request;
+};
+export const post = <T>(path: string, body: unknown) => {
+  const prefix = path.replace(/\/[^/]*$/, '');
+  return api<T>(path, { method: 'POST', body: JSON.stringify(body) }).then((data) => {
+    invalidateCache(prefix);
+    return data;
+  });
+};
+export const put = <T>(path: string, body: unknown) => {
+  const prefix = path.replace(/\/[^/]*$/, '');
+  return api<T>(path, { method: 'PUT', body: JSON.stringify(body) }).then((data) => {
+    invalidateCache(prefix);
+    return data;
+  });
+};
+export const del = <T>(path: string) => {
+  const prefix = path.replace(/\/[^/]*$/, '');
+  return api<T>(path, { method: 'DELETE' }).then((data) => {
+    invalidateCache(prefix);
+    return data;
+  });
+};

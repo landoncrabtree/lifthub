@@ -92,7 +92,7 @@ export default function History() {
     setSelectedDay(null);
   }
 
-  if (loading) {
+  if (loading && !workouts) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold text-[var(--color-text)]">History</h1>
