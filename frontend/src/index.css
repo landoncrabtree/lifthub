@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --color-bg: #ffffff;
+    --color-bg-secondary: #f9fafb;
+    --color-bg-tertiary: #f3f4f6;
+    --color-border: #e5e7eb;
+    --color-text: #111827;
+    --color-text-secondary: #6b7280;
+    --color-text-tertiary: #9ca3af;
+  }
+
+  .dark {
+    --color-bg: #0a0a0a;
+    --color-bg-secondary: #141414;
+    --color-bg-tertiary: #1f1f1f;
+    --color-border: #262626;
+    --color-text: #f5f5f5;
+    --color-text-secondary: #a3a3a3;
+    --color-text-tertiary: #737373;
+  }
+
+  body {
+    @apply antialiased;
+    background-color: var(--color-bg);
+    color: var(--color-text);
+  }
+
+  * {
+    @apply border-[var(--color-border)];
+  }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border bg-[var(--color-bg)] p-4 shadow-sm;
+  }
+
+  .card-secondary {
+    @apply rounded-xl border bg-[var(--color-bg-secondary)] p-4;
+  }
+
+  .input-field {
+    @apply w-full rounded-lg border bg-[var(--color-bg)] px-3 py-2 text-base
+           placeholder:text-[var(--color-text-tertiary)]
+           focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500
+           transition-colors;
+  }
+}
+
+/* Smooth theme transitions */
+html {
+  transition: color-scheme 0.3s;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* Toast slide-in animation */
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.25s ease-out;
+}
