@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: ghcr.io/caddybuilds/caddy-cloudflare:latest
+    image: ghcr.io/caddybuilds/caddy-cloudflare:alpine
     ports:
       - "8080:8080"
       - "8443:8443"
