@@ -24,10 +24,10 @@ jobs:
             cd ${{ secrets.REPO_PATH }}
             git pull https://${{ secrets.GIT_PAT }}@github.com/landoncrabtree/landon.pw-dockerized.git
             sudo docker compose build
-            sudo docker compose up -d
+            sudo docker compose up -d --force-recreate --remove-orphans
           EOF
 
       - name: Health check
         run: |
-          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "curl -sf http://localhost:80 > /dev/null"
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "curl -sf http://localhost:8080 > /dev/null"
           echo "Health check passed."
