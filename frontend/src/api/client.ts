@@ -126,6 +126,7 @@ const PREFETCH_PATHS = [
   '/nutrition/profile',
   '/nutrition/log?days=30',
   '/nutrition/charts',
+  '/foods',
   '/foods/custom-meals',
 ];
 

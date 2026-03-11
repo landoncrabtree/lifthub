@@ -11,7 +11,6 @@ import type { Food, MealType, CustomMeal } from '@/types';
 import {
   Search,
   Camera,
-  UtensilsCrossed,
   Plus,
   Minus,
   ScanBarcode,
@@ -82,8 +81,8 @@ export default function FoodSearchModal({
 
   // ── Search state ──
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchResults, setSearchResults] = useState<Food[]>([]);
-  const [searchLoading, setSearchLoading] = useState(false);
+  const [allFoods, setAllFoods] = useState<Food[]>([]);
+  const [foodsLoading, setFoodsLoading] = useState(false);
 
   // ── Barcode state ──
   const [barcodeInput, setBarcodeInput] = useState('');
@@ -97,6 +96,7 @@ export default function FoodSearchModal({
   // ── Custom meals state ──
   const [customMeals, setCustomMeals] = useState<CustomMeal[]>([]);
   const [mealsLoading, setMealsLoading] = useState(false);
+  const [mealSearch, setMealSearch] = useState('');
 
   // ── Portion selector state ──
   const [selectedFood, setSelectedFood] = useState<Food | null>(null);
@@ -116,7 +116,7 @@ export default function FoodSearchModal({
       setView('tabs');
       setActiveTab('search');
       setSearchTerm('');
-      setSearchResults([]);
+      setAllFoods([]);
       setSelectedFood(null);
       setSelectedMeal(null);
       setServings(1);
@@ -131,40 +131,43 @@ export default function FoodSearchModal({
     }
   }, [open, defaultMealType]);
 
-  // ── Debounced search ──
+  // ── Load all foods when modal opens ──
   useEffect(() => {
-    if (!searchTerm.trim()) {
-      setSearchResults([]);
-      return;
-    }
+    if (!open) return;
+    setFoodsLoading(true);
+    get<Food[]>('/foods')
+      .then(setAllFoods)
+      .catch(() => setAllFoods([]))
+      .finally(() => setFoodsLoading(false));
+  }, [open]);
 
-    setSearchLoading(true);
-    const timer = setTimeout(async () => {
-      try {
-        const data = await get<Food[]>(
-          `/foods/search?q=${encodeURIComponent(searchTerm.trim())}`,
-        );
-        setSearchResults(data);
-      } catch {
-        setSearchResults([]);
-      } finally {
-        setSearchLoading(false);
-      }
-    }, 300);
+  // ── Client-side filtered foods ──
+  const filteredFoods = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return allFoods;
+    return allFoods.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        (f.brand && f.brand.toLowerCase().includes(q)),
+    );
+  }, [allFoods, searchTerm]);
 
-    return () => clearTimeout(timer);
-  }, [searchTerm]);
-
-  // ── Fetch custom meals when tab opens ──
+  // ── Fetch custom meals when modal opens ──
   useEffect(() => {
-    if (open && activeTab === 'meals') {
-      setMealsLoading(true);
-      get<CustomMeal[]>('/foods/custom-meals')
-        .then(setCustomMeals)
-        .catch(() => setCustomMeals([]))
-        .finally(() => setMealsLoading(false));
-    }
-  }, [open, activeTab]);
+    if (!open) return;
+    setMealsLoading(true);
+    get<CustomMeal[]>('/foods/custom-meals')
+      .then(setCustomMeals)
+      .catch(() => setCustomMeals([]))
+      .finally(() => setMealsLoading(false));
+  }, [open]);
+
+  // ── Client-side filtered meals ──
+  const filteredMeals = useMemo(() => {
+    const q = mealSearch.trim().toLowerCase();
+    if (!q) return customMeals;
+    return customMeals.filter((m) => m.name.toLowerCase().includes(q));
+  }, [customMeals, mealSearch]);
 
   // ── Camera helpers (WASM ZBar barcode scanner) ──
   const stopCamera = useCallback(() => {
@@ -569,13 +572,13 @@ export default function FoodSearchModal({
           <TabPanel value="search" activeValue={activeTab}>
             <div className="space-y-3">
               <Input
-                placeholder="Search foods..."
+                placeholder="Filter foods..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 leftIcon={<Search className="h-4 w-4" />}
               />
 
-              {searchLoading && (
+              {foodsLoading && !allFoods.length && (
                 <div className="space-y-2">
                   {Array.from({ length: 4 }).map((_, i) => (
                     <div key={i} className="flex items-center justify-between rounded-lg p-3">
@@ -589,9 +592,9 @@ export default function FoodSearchModal({
                 </div>
               )}
 
-              {!searchLoading && searchResults.length > 0 && (
+              {!foodsLoading && filteredFoods.length > 0 && (
                 <ul className="max-h-64 space-y-1 overflow-y-auto">
-                  {searchResults.map((food) => (
+                  {filteredFoods.map((food) => (
                     <li key={food.id}>
                       <button
                         onClick={() => selectFood(food)}
@@ -616,9 +619,9 @@ export default function FoodSearchModal({
                 </ul>
               )}
 
-              {!searchLoading && searchTerm.trim() && searchResults.length === 0 && (
+              {!foodsLoading && allFoods.length > 0 && filteredFoods.length === 0 && (
                 <p className="py-4 text-center text-sm text-[var(--color-text-secondary)]">
-                  No results found.
+                  No foods matching "{searchTerm}"
                 </p>
               )}
 
@@ -636,6 +639,27 @@ export default function FoodSearchModal({
           {/* Scan Tab */}
           <TabPanel value="scan" activeValue={activeTab}>
             <div className="space-y-3">
+              {/* Manual barcode entry (always shown when camera is off) */}
+              {!cameraActive && (
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Enter barcode manually..."
+                    value={barcodeInput}
+                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    leftIcon={<ScanBarcode className="h-4 w-4" />}
+                    wrapperClassName="flex-1"
+                  />
+                  <Button
+                    variant="primary"
+                    onClick={() => lookupBarcode(barcodeInput)}
+                    disabled={!barcodeInput.trim()}
+                    loading={barcodeLoading}
+                  >
+                    Look up
+                  </Button>
+                </div>
+              )}
+
               {!cameraActive && !barcodeResult && !barcodeError && !barcodeLoading && (
                 <Button
                   variant="secondary"
@@ -673,27 +697,6 @@ export default function FoodSearchModal({
                 </div>
               )}
 
-              {/* Manual barcode entry (always shown when camera is off) */}
-              {!cameraActive && (
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Or enter barcode manually..."
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    leftIcon={<ScanBarcode className="h-4 w-4" />}
-                    wrapperClassName="flex-1"
-                  />
-                  <Button
-                    variant="primary"
-                    onClick={() => lookupBarcode(barcodeInput)}
-                    disabled={!barcodeInput.trim()}
-                    loading={barcodeLoading}
-                  >
-                    Look up
-                  </Button>
-                </div>
-              )}
-
               {barcodeLoading && (
                 <div className="space-y-2 p-3">
                   <Skeleton className="h-4 w-40" />
@@ -726,8 +729,15 @@ export default function FoodSearchModal({
 
           {/* My Meals Tab */}
           <TabPanel value="meals" activeValue={activeTab}>
-            <div className="space-y-2">
-              {mealsLoading && (
+            <div className="space-y-3">
+              <Input
+                placeholder="Filter meals..."
+                value={mealSearch}
+                onChange={(e) => setMealSearch(e.target.value)}
+                leftIcon={<Search className="h-4 w-4" />}
+              />
+
+              {mealsLoading && !customMeals.length && (
                 <div className="space-y-2">
                   {Array.from({ length: 3 }).map((_, i) => (
                     <div key={i} className="flex items-center justify-between rounded-lg p-3">
@@ -738,18 +748,9 @@ export default function FoodSearchModal({
                 </div>
               )}
 
-              {!mealsLoading && customMeals.length === 0 && (
-                <div className="flex flex-col items-center gap-2 py-8 text-center">
-                  <UtensilsCrossed className="h-8 w-8 text-[var(--color-text-secondary)]" />
-                  <p className="text-sm text-[var(--color-text-secondary)]">
-                    No custom meals yet.
-                  </p>
-                </div>
-              )}
-
-              {!mealsLoading && customMeals.length > 0 && (
+              {!mealsLoading && filteredMeals.length > 0 && (
                 <ul className="max-h-64 space-y-1 overflow-y-auto">
-                  {customMeals.map((meal) => (
+                  {filteredMeals.map((meal) => (
                     <li key={meal.id}>
                       <button
                         onClick={() => selectMeal(meal)}
@@ -773,6 +774,27 @@ export default function FoodSearchModal({
                   ))}
                 </ul>
               )}
+
+              {!mealsLoading && mealSearch.trim() && filteredMeals.length === 0 && (
+                <p className="py-4 text-center text-sm text-[var(--color-text-secondary)]">
+                  No meals matching "{mealSearch}"
+                </p>
+              )}
+
+              {!mealsLoading && !mealSearch.trim() && customMeals.length === 0 && (
+                <p className="py-4 text-center text-sm text-[var(--color-text-secondary)]">
+                  No custom meals yet.
+                </p>
+              )}
+
+              <Button
+                variant="secondary"
+                className="w-full"
+                leftIcon={<Plus className="h-4 w-4" />}
+                onClick={() => window.open('/nutrition/meals', '_self')}
+              >
+                Create New Meal
+              </Button>
             </div>
           </TabPanel>
         </div>

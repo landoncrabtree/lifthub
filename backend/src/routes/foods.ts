@@ -5,6 +5,19 @@ import { authMiddleware } from '../middleware/auth.js';
 const router = Router();
 router.use(authMiddleware);
 
+// List all foods available to the user (their own + USDA/global)
+router.get('/', (req: Request, res: Response) => {
+  const foods = db
+    .prepare(
+      `SELECT * FROM foods
+       WHERE user_id = ? OR user_id IS NULL
+       ORDER BY name`
+    )
+    .all(req.userId!);
+
+  res.json(foods);
+});
+
 // Search foods (user's custom + cached OpenFoodFacts)
 router.get('/search', (req: Request, res: Response) => {
   const { q } = req.query;

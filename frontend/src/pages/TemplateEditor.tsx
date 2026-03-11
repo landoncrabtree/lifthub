@@ -4,7 +4,8 @@ import {
   DndContext,
   closestCenter,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -17,7 +18,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Save, Plus, X, GripVertical, AlertCircle, Copy } from 'lucide-react';
+import { Save, Plus, X, GripVertical, AlertCircle, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { get, post, put } from '@/api/client';
 import { useToast } from '@/contexts/ToastContext';
@@ -54,6 +55,8 @@ interface SortableRowProps {
   onChange: (key: string, field: keyof TemplateExercise, value: unknown) => void;
   onRemove: (key: string) => void;
   onCreateExercise: (key: string) => void;
+  collapsed: boolean;
+  onToggleCollapse: (key: string) => void;
 }
 
 function SortableExerciseRow({
@@ -66,6 +69,8 @@ function SortableExerciseRow({
   onChange,
   onRemove,
   onCreateExercise,
+  collapsed,
+  onToggleCollapse,
 }: SortableRowProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id: item._key });
@@ -96,116 +101,150 @@ function SortableExerciseRow({
     >
       <button
         className="mt-2 cursor-grab text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] active:cursor-grabbing"
+        style={{ touchAction: 'none' }}
         {...attributes}
         {...listeners}
       >
         <GripVertical className="h-5 w-5" />
       </button>
 
-      <div className="flex-1 space-y-3">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          {/* Exercise selector */}
-          <div className="relative sm:col-span-2 lg:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Exercise</label>
+      {collapsed ? (
+        /* ── Collapsed: single row with name ── */
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          <button
+            onClick={() => onToggleCollapse(item._key)}
+            className="shrink-0 rounded-lg p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+          <p className="truncate font-medium text-[var(--color-text-primary)]">
+            {selectedExercise?.name || 'No exercise selected'}
+          </p>
+          {item.sets > 0 && (
+            <span className="shrink-0 text-xs text-[var(--color-text-tertiary)]">
+              {item.sets} × {item.reps}
+            </span>
+          )}
+        </div>
+      ) : (
+        /* ── Expanded: full form ── */
+        <div className="flex-1 space-y-3">
+          <div className="flex items-center gap-2">
             <button
-              type="button"
-              className="input-field text-left"
-              onClick={() => onActivateSearch(isSearchActive ? null : item._key)}
+              onClick={() => onToggleCollapse(item._key)}
+              className="shrink-0 rounded-lg p-1 text-[var(--color-text-tertiary)] hover:text-[var(--color-text-secondary)] transition-colors"
             >
-              {selectedExercise?.name || 'Select exercise...'}
+              <ChevronDown className="h-4 w-4" />
             </button>
-            {isSearchActive && (
-              <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg">
-                <div className="sticky top-0 bg-[var(--color-bg)] p-2">
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    value={exerciseSearch}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
-                    className="input-field text-xs"
-                    autoFocus
-                  />
-                </div>
-                {filteredExercises.map((ex) => (
-                  <button
-                    key={ex.id}
-                    type="button"
-                    className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
-                    onClick={() => {
-                      onChange(item._key, 'exercise_id', ex.id);
-                      onActivateSearch(null);
-                      onSearchChange('');
-                    }}
-                  >
-                    <span>{ex.name}</span>
-                    <span className="text-xs text-[var(--color-text-tertiary)]">{formatLabel(ex.muscle_group)}</span>
-                  </button>
-                ))}
-                {filteredExercises.length === 0 && (
-                  <p className="px-3 py-2 text-xs text-[var(--color-text-tertiary)]">No exercises found</p>
-                )}
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2 border-t border-[var(--color-border)] px-3 py-2 text-left text-sm font-medium text-brand-500 hover:bg-[var(--color-bg-secondary)]"
-                  onClick={() => {
-                    onActivateSearch(null);
-                    onCreateExercise(item._key);
-                  }}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  Create New Exercise
-                </button>
-              </div>
-            )}
+            <span className="text-xs font-medium text-[var(--color-text-secondary)]">
+              {selectedExercise?.name || 'New Exercise'}
+            </span>
           </div>
 
-          <Input
-            label="Sets"
-            type="number"
-            min={1}
-            value={item.sets}
-            onChange={(e) => onChange(item._key, 'sets', parseInt(e.target.value) || 1)}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {/* Exercise selector */}
+            <div className="relative sm:col-span-2 lg:col-span-2">
+              <label className="mb-1 block text-xs font-medium text-[var(--color-text-secondary)]">Exercise</label>
+              <button
+                type="button"
+                className="input-field text-left"
+                onClick={() => onActivateSearch(isSearchActive ? null : item._key)}
+              >
+                {selectedExercise?.name || 'Select exercise...'}
+              </button>
+              {isSearchActive && (
+                <div className="absolute left-0 top-full z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] shadow-lg">
+                  <div className="sticky top-0 bg-[var(--color-bg)] p-2">
+                    <input
+                      type="text"
+                      placeholder="Search..."
+                      value={exerciseSearch}
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) => onSearchChange(e.target.value)}
+                      className="input-field text-xs"
+                      autoFocus
+                    />
+                  </div>
+                  {filteredExercises.map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-[var(--color-bg-secondary)]"
+                      onClick={() => {
+                        onChange(item._key, 'exercise_id', ex.id);
+                        onActivateSearch(null);
+                        onSearchChange('');
+                      }}
+                    >
+                      <span>{ex.name}</span>
+                      <span className="text-xs text-[var(--color-text-tertiary)]">{formatLabel(ex.muscle_group)}</span>
+                    </button>
+                  ))}
+                  {filteredExercises.length === 0 && (
+                    <p className="px-3 py-2 text-xs text-[var(--color-text-tertiary)]">No exercises found</p>
+                  )}
+                  <button
+                    type="button"
+                    className="flex w-full items-center gap-2 border-t border-[var(--color-border)] px-3 py-2 text-left text-sm font-medium text-brand-500 hover:bg-[var(--color-bg-secondary)]"
+                    onClick={() => {
+                      onActivateSearch(null);
+                      onCreateExercise(item._key);
+                    }}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Create New Exercise
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <Input
+              label="Sets"
+              type="number"
+              min={1}
+              value={item.sets}
+              onChange={(e) => onChange(item._key, 'sets', parseInt(e.target.value) || 1)}
+            />
+
+            <Input
+              label="Reps"
+              type="text"
+              value={String(item.reps)}
+              onChange={(e) => onChange(item._key, 'reps', e.target.value)}
+              placeholder="8, 8-12, AMRAP"
+            />
+
+            <Input
+              label="Rest (s)"
+              type="number"
+              min={0}
+              value={item.rest_seconds ?? ''}
+              onChange={(e) => onChange(item._key, 'rest_seconds', e.target.value ? parseInt(e.target.value) : null)}
+              placeholder="90"
+            />
+          </div>
+
+          <Select
+            label="Type"
+            options={SET_TYPE_OPTIONS}
+            value={item.set_type}
+            onChange={(e) => onChange(item._key, 'set_type', e.target.value)}
+            wrapperClassName="max-w-[200px]"
           />
 
-          <Input
-            label="Reps"
-            type="text"
-            value={String(item.reps)}
-            onChange={(e) => onChange(item._key, 'reps', e.target.value)}
-            placeholder="8, 8-12, AMRAP"
-          />
-
-          <Input
-            label="Rest (s)"
-            type="number"
-            min={0}
-            value={item.rest_seconds ?? ''}
-            onChange={(e) => onChange(item._key, 'rest_seconds', e.target.value ? parseInt(e.target.value) : null)}
-            placeholder="90"
-          />
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-medium text-[var(--color-text-secondary)]">Notes</label>
+            <input
+              type="text"
+              value={item.notes ?? ''}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                onChange(item._key, 'notes', e.target.value || null)
+              }
+              placeholder="Optional notes..."
+              className="input-field text-sm"
+            />
+          </div>
         </div>
-
-        <Select
-          label="Type"
-          options={SET_TYPE_OPTIONS}
-          value={item.set_type}
-          onChange={(e) => onChange(item._key, 'set_type', e.target.value)}
-          wrapperClassName="max-w-[200px]"
-        />
-
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-medium text-[var(--color-text-secondary)]">Notes</label>
-          <input
-            type="text"
-            value={item.notes ?? ''}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-              onChange(item._key, 'notes', e.target.value || null)
-            }
-            placeholder="Optional notes..."
-            className="input-field text-sm"
-          />
-        </div>
-      </div>
+      )}
 
       <button
         onClick={() => onRemove(item._key)}
@@ -277,6 +316,7 @@ export default function TemplateEditor() {
   const [error, setError] = useState<string | null>(null);
   const [exerciseSearch, setExerciseSearch] = useState('');
   const [activeSearchKey, setActiveSearchKey] = useState<string | null>(null);
+  const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set());
 
   // Inline exercise creation
   const [showCreateExercise, setShowCreateExercise] = useState(false);
@@ -327,6 +367,15 @@ export default function TemplateEditor() {
     return map;
   }, [exercises]);
 
+  const toggleCollapse = useCallback((key: string) => {
+    setCollapsedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }, []);
+
   function rowsToJson(rows: EditorExercise[]): JsonExercise[] {
     return rows.map((r) => ({
       exercise_name: exerciseIdToName.get(r.exercise_id) ?? `Unknown (ID: ${r.exercise_id})`,
@@ -364,7 +413,8 @@ export default function TemplateEditor() {
   }, [activeTab]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
@@ -569,6 +619,8 @@ export default function TemplateEditor() {
                   onChange={handleFieldChange}
                   onRemove={removeExercise}
                   onCreateExercise={openCreateExercise}
+                  collapsed={collapsedKeys.has(row._key)}
+                  onToggleCollapse={toggleCollapse}
                 />
               ))}
             </SortableContext>
