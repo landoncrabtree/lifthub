@@ -4,13 +4,13 @@ A self-hosted workout tracking PWA. Track exercises, build templates, log workou
 
 ## Features
 
-- Exercise library with 93 seeded exercises across 13 muscle groups
-- Drag-and-drop template builder with graphical and JSON editing modes
+- Exercise library with built-in exercises and the ability for users to add their own exercises
+- Drag and drop template (workout) editor with graphical and JSON editing modes
 - Live workout tracking with rest timer and audio cues
 - Progress charts (max weight, volume, estimated 1RM) and workout heatmap
+- Nutritional tracking (TDEE, calorie, protein, carbs, fat) with the ability to log food via barcode (OpenFoodFacts), custom meals, and USDA database
 - PWA with offline support
-- Dark mode
-- Auto-SSL via Caddy
+- Multi-user support for hosting for friends/family.
 
 ## Getting Started
 
@@ -18,38 +18,32 @@ A self-hosted workout tracking PWA. Track exercises, build templates, log workou
 
 - Docker and Docker Compose
 
-### Setup
-
-1. Clone the repository and create an environment file:
+### Development
 
 ```sh
+git clone https://github.com/landoncrabtree/lifthub.git
+docker compose -f docker-compose-dev.yml up --build -d
+```
+
+The app will be available at `http://localhost`.
+
+### Production
+
+```sh
+git clone https://github.com/landoncrabtree/lifthub.git
+
 cp .env.example .env
+# Modify .env as needed
+
+docker compose build
+docker compose up -d
 ```
 
-2. Edit `.env`:
+Assuming you have the domain pointing to your server's IP address (and firewall rules allow 80/443 traffic), the app will be available at `https://your-domain`.
 
-```
-DOMAIN=localhost
-JWT_SECRET=your-random-secret-here
-```
+### CI/CD Example
 
-For production, set `DOMAIN` to your actual domain (e.g. `lifthub.example.com`). Caddy will automatically provision SSL certificates via Let's Encrypt.
-
-3. Start the stack:
-
-```sh
-docker compose up --build -d
-```
-
-The app will be available at `http://localhost` (or `https://your-domain` in production).
-
-### Data Persistence
-
-SQLite data is stored in the `sqlite-data` Docker volume. To back up:
-
-```sh
-docker compose cp backend:/app/data/gym.db ./gym-backup.db
-```
+Check out `.github/workflows/main.yml` for a CI/CD example on using GitHub actions to build and deploy the app to a server.
 
 ## Project Structure
 
@@ -57,7 +51,7 @@ docker compose cp backend:/app/data/gym.db ./gym-backup.db
 .
 ├── backend/          Express API + SQLite
 ├── frontend/         React + Vite SPA
-├── Caddyfile         Reverse proxy config
+├── caddy/            Caddyfile and related config
 ├── docker-compose.yml
 └── .env.example
 ```

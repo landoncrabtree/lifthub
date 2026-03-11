@@ -6,9 +6,9 @@ services:
     volumes:
       - ./backend/data:/app/data
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
       - PORT=3001
-      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_SECRET=dev-secret-change-me
       - DB_PATH=/app/data/gym.db
     restart: unless-stopped
 
@@ -25,15 +25,13 @@ services:
     image: caddy:2-alpine
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"
     volumes:
-      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+      - ./caddy/Caddyfile.dev:/etc/caddy/Caddyfile
       - frontend-assets:/srv/frontend:ro
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      - DOMAIN=${DOMAIN:-localhost}
+      - DOMAIN=localhost
     depends_on:
       - backend
       - frontend

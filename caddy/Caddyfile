@@ -1,0 +1,26 @@
+{
+	acme_dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+
+	servers {
+		trusted_proxies cloudflare
+		client_ip_headers Cf-Connecting-Ip
+	}
+}
+
+{$DOMAIN} {
+
+    root * /srv/frontend
+    encode gzip
+
+    handle /api/* {
+        reverse_proxy backend:3001
+    }
+
+    @static path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff2
+    header @static Cache-Control "public, max-age=31536000, immutable"
+
+    handle {
+        try_files {path} /index.html
+        file_server
+    }
+}

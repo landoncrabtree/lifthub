@@ -1,0 +1,33 @@
+name: Deploy via SSH
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Add known hosts
+        run: ssh-keyscan -t rsa ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
+            cd ${{ secrets.REPO_PATH }}
+            git pull https://${{ secrets.GIT_PAT }}@github.com/landoncrabtree/landon.pw-dockerized.git
+            sudo docker compose build
+            sudo docker compose up -d
+          EOF
+
+      - name: Health check
+        run: |
+          ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} "curl -sf http://localhost:80 > /dev/null"
+          echo "Health check passed."
