@@ -1,4 +1,6 @@
 import db from './connection.js';
+import { exercises, foods } from './schema.js';
+import { count, isNull, eq } from 'drizzle-orm';
 
 const EXERCISES = [
   // Chest
@@ -238,44 +240,48 @@ const FOODS: [string, number, string, number, number, number, number][] = [
 ];
 
 function seedExercises() {
-  const count = db.prepare('SELECT COUNT(*) as n FROM exercises WHERE user_id IS NULL').get() as { n: number };
-  if (count.n > 0) {
-    console.log(`Seed skipped: ${count.n} built-in exercises already exist`);
+  const [result] = db.select({ n: count() }).from(exercises).where(isNull(exercises.user_id)).all();
+  if (result.n > 0) {
+    console.log(`Seed skipped: ${result.n} built-in exercises already exist`);
     return;
   }
 
-  const insert = db.prepare(
-    'INSERT INTO exercises (user_id, name, muscle_group, equipment, description) VALUES (NULL, ?, ?, ?, ?)'
-  );
+  db.insert(exercises).values(
+    EXERCISES.map((ex) => ({
+      user_id: null,
+      name: ex.name,
+      muscle_group: ex.muscle_group,
+      equipment: ex.equipment,
+      description: ex.description,
+    }))
+  ).run();
 
-  const insertMany = db.transaction(() => {
-    for (const ex of EXERCISES) {
-      insert.run(ex.name, ex.muscle_group, ex.equipment, ex.description);
-    }
-  });
-
-  insertMany();
   console.log(`Seeded ${EXERCISES.length} exercises`);
 }
 
 export function seedFoods() {
-  const count = db.prepare("SELECT COUNT(*) as n FROM foods WHERE source = 'usda'").get() as { n: number };
-  if (count.n > 0) {
-    console.log(`Seed skipped: ${count.n} USDA foods already exist`);
+  const [result] = db.select({ n: count() }).from(foods).where(eq(foods.source, 'usda')).all();
+  if (result.n > 0) {
+    console.log(`Seed skipped: ${result.n} USDA foods already exist`);
     return;
   }
 
-  const insert = db.prepare(
-    'INSERT INTO foods (user_id, barcode, name, brand, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, source) VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
-  );
+  db.insert(foods).values(
+    FOODS.map(([name, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g]) => ({
+      user_id: null,
+      barcode: null,
+      name,
+      brand: 'USDA',
+      serving_size,
+      serving_unit,
+      calories,
+      protein_g,
+      carbs_g,
+      fat_g,
+      source: 'usda',
+    }))
+  ).run();
 
-  const insertMany = db.transaction(() => {
-    for (const [name, serving_size, serving_unit, calories, protein_g, carbs_g, fat_g] of FOODS) {
-      insert.run(name, 'USDA', serving_size, serving_unit, calories, protein_g, carbs_g, fat_g, 'usda');
-    }
-  });
-
-  insertMany();
   console.log(`Seeded ${FOODS.length} USDA foods`);
 }
 

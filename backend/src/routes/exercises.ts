@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import db from '../db/connection.js';
+import { exercises } from '../db/schema.js';
+import { eq, and, or, like, isNull, asc } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
-import type { Exercise } from '../types/index.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -9,36 +10,26 @@ router.use(authMiddleware);
 // List exercises (built-in + user's custom)
 router.get('/', (req: Request, res: Response) => {
   const { q, muscle_group, equipment } = req.query;
-
-  let sql = 'SELECT * FROM exercises WHERE (user_id IS NULL OR user_id = ?)';
-  const params: unknown[] = [req.userId!];
-
-  if (q) {
-    sql += ' AND name LIKE ?';
-    params.push(`%${q}%`);
-  }
-
-  if (muscle_group) {
-    sql += ' AND muscle_group = ?';
-    params.push(muscle_group);
-  }
-
-  if (equipment) {
-    sql += ' AND equipment = ?';
-    params.push(equipment);
-  }
-
-  sql += ' ORDER BY name ASC';
-
-  const exercises = db.prepare(sql).all(...params) as Exercise[];
-  res.json(exercises);
+  const conditions = [or(isNull(exercises.user_id), eq(exercises.user_id, req.userId!))];
+  if (q) conditions.push(like(exercises.name, `%${q}%`));
+  if (muscle_group) conditions.push(eq(exercises.muscle_group, muscle_group as string));
+  if (equipment) conditions.push(eq(exercises.equipment, equipment as string));
+  const rows = db.select().from(exercises).where(and(...conditions)).orderBy(asc(exercises.name)).all();
+  res.json(rows);
 });
 
 // Get single exercise
 router.get('/:id', (req: Request, res: Response) => {
   const exercise = db
-    .prepare('SELECT * FROM exercises WHERE id = ? AND (user_id IS NULL OR user_id = ?)')
-    .get(req.params.id, req.userId!) as Exercise | undefined;
+    .select()
+    .from(exercises)
+    .where(
+      and(
+        eq(exercises.id, Number(req.params.id)),
+        or(isNull(exercises.user_id), eq(exercises.user_id, req.userId!))
+      )
+    )
+    .get();
 
   if (!exercise) {
     res.status(404).json({ error: 'Exercise not found' });
@@ -57,21 +48,22 @@ router.post('/', (req: Request, res: Response) => {
     return;
   }
 
-  const result = db
-    .prepare(
-      'INSERT INTO exercises (user_id, name, muscle_group, equipment, description) VALUES (?, ?, ?, ?, ?)'
-    )
-    .run(req.userId!, name, muscle_group, equipment || null, description || null);
+  const exercise = db
+    .insert(exercises)
+    .values({ user_id: req.userId!, name, muscle_group, equipment: equipment || null, description: description || null })
+    .returning()
+    .get();
 
-  const exercise = db.prepare('SELECT * FROM exercises WHERE id = ?').get(result.lastInsertRowid) as Exercise;
   res.status(201).json(exercise);
 });
 
 // Update custom exercise
 router.put('/:id', (req: Request, res: Response) => {
   const existing = db
-    .prepare('SELECT * FROM exercises WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.userId!) as Exercise | undefined;
+    .select()
+    .from(exercises)
+    .where(and(eq(exercises.id, Number(req.params.id)), eq(exercises.user_id, req.userId!)))
+    .get();
 
   if (!existing) {
     res.status(404).json({ error: 'Exercise not found or not editable' });
@@ -79,20 +71,28 @@ router.put('/:id', (req: Request, res: Response) => {
   }
 
   const { name, muscle_group, equipment, description } = req.body;
+  const updates: Partial<typeof exercises.$inferInsert> = {};
+  if (name !== undefined) updates.name = name;
+  if (muscle_group !== undefined) updates.muscle_group = muscle_group;
+  if (equipment !== undefined) updates.equipment = equipment;
+  if (description !== undefined) updates.description = description;
 
-  db.prepare(
-    'UPDATE exercises SET name = COALESCE(?, name), muscle_group = COALESCE(?, muscle_group), equipment = COALESCE(?, equipment), description = COALESCE(?, description) WHERE id = ?'
-  ).run(name, muscle_group, equipment, description, req.params.id);
+  const updated = db
+    .update(exercises)
+    .set(updates)
+    .where(eq(exercises.id, Number(req.params.id)))
+    .returning()
+    .get();
 
-  const updated = db.prepare('SELECT * FROM exercises WHERE id = ?').get(req.params.id) as Exercise;
   res.json(updated);
 });
 
 // Delete custom exercise
 router.delete('/:id', (req: Request, res: Response) => {
   const result = db
-    .prepare('DELETE FROM exercises WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.userId!);
+    .delete(exercises)
+    .where(and(eq(exercises.id, Number(req.params.id)), eq(exercises.user_id, req.userId!)))
+    .run();
 
   if (result.changes === 0) {
     res.status(404).json({ error: 'Exercise not found or not deletable' });

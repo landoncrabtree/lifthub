@@ -1,15 +1,17 @@
 import { Router, Request, Response } from 'express';
-import db from '../db/connection.js';
+import db, { sqlite } from '../db/connection.js';
+import { templates, templateExercises, exercises } from '../db/schema.js';
+import { eq, and, desc, asc, getTableColumns, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
-import type { Template, TemplateExerciseRow, Workout } from '../types/index.js';
 
 const router = Router();
 router.use(authMiddleware);
 
+// Uses raw sqlite for the multi-row DELETE + INSERT loop
 function syncTemplateExercises(templateId: number, jsonData: string) {
-  db.prepare('DELETE FROM template_exercises WHERE template_id = ?').run(templateId);
+  sqlite.prepare('DELETE FROM template_exercises WHERE template_id = ?').run(templateId);
 
-  let exercises: Array<{
+  let exerciseList: Array<{
     exercise_id: number;
     order_index: number;
     sets: number;
@@ -20,19 +22,19 @@ function syncTemplateExercises(templateId: number, jsonData: string) {
   }>;
 
   try {
-    exercises = JSON.parse(jsonData);
+    exerciseList = JSON.parse(jsonData);
   } catch {
     return;
   }
 
-  if (!Array.isArray(exercises)) return;
+  if (!Array.isArray(exerciseList)) return;
 
-  const insert = db.prepare(
+  const insert = sqlite.prepare(
     `INSERT INTO template_exercises (template_id, exercise_id, order_index, sets, reps, rest_seconds, set_type, notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   );
 
-  for (const ex of exercises) {
+  for (const ex of exerciseList) {
     insert.run(
       templateId,
       ex.exercise_id,
@@ -48,39 +50,46 @@ function syncTemplateExercises(templateId: number, jsonData: string) {
 
 // List templates
 router.get('/', (req: Request, res: Response) => {
-  const templates = db
-    .prepare('SELECT * FROM templates WHERE user_id = ? ORDER BY updated_at DESC')
-    .all(req.userId!) as Template[];
+  const rows = db
+    .select()
+    .from(templates)
+    .where(eq(templates.user_id, req.userId!))
+    .orderBy(desc(templates.updated_at))
+    .all();
 
-  res.json(templates.map((t) => ({ ...t, json_data: JSON.parse(t.json_data) })));
+  res.json(rows.map((t) => ({ ...t, json_data: JSON.parse(t.json_data) })));
 });
 
 // Get template detail
 router.get('/:id', (req: Request, res: Response) => {
   const template = db
-    .prepare('SELECT * FROM templates WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.userId!) as Template | undefined;
+    .select()
+    .from(templates)
+    .where(and(eq(templates.id, Number(req.params.id)), eq(templates.user_id, req.userId!)))
+    .get();
 
   if (!template) {
     res.status(404).json({ error: 'Template not found' });
     return;
   }
 
-  // Include exercise details
-  const exercises = db
-    .prepare(
-      `SELECT te.*, e.name as exercise_name, e.muscle_group, e.equipment
-       FROM template_exercises te
-       JOIN exercises e ON te.exercise_id = e.id
-       WHERE te.template_id = ?
-       ORDER BY te.order_index`
-    )
-    .all(template.id) as (TemplateExerciseRow & { exercise_name: string; muscle_group: string; equipment: string })[];
+  const exerciseRows = db
+    .select({
+      ...getTableColumns(templateExercises),
+      exercise_name: exercises.name,
+      muscle_group: exercises.muscle_group,
+      equipment: exercises.equipment,
+    })
+    .from(templateExercises)
+    .innerJoin(exercises, eq(templateExercises.exercise_id, exercises.id))
+    .where(eq(templateExercises.template_id, template.id))
+    .orderBy(asc(templateExercises.order_index))
+    .all();
 
   res.json({
     ...template,
     json_data: JSON.parse(template.json_data),
-    exercises,
+    exercises: exerciseRows,
   });
 });
 
@@ -95,22 +104,24 @@ router.post('/', (req: Request, res: Response) => {
 
   const jsonStr = JSON.stringify(json_data || []);
 
-  const result = db
-    .prepare('INSERT INTO templates (user_id, name, description, json_data) VALUES (?, ?, ?, ?)')
-    .run(req.userId!, name, description || null, jsonStr);
+  const template = db
+    .insert(templates)
+    .values({ user_id: req.userId!, name, description: description || null, json_data: jsonStr })
+    .returning()
+    .get();
 
-  const templateId = result.lastInsertRowid as number;
-  syncTemplateExercises(templateId, jsonStr);
+  syncTemplateExercises(template.id, jsonStr);
 
-  const template = db.prepare('SELECT * FROM templates WHERE id = ?').get(templateId) as Template;
   res.status(201).json({ ...template, json_data: JSON.parse(template.json_data) });
 });
 
 // Update template
 router.put('/:id', (req: Request, res: Response) => {
   const existing = db
-    .prepare('SELECT * FROM templates WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.userId!) as Template | undefined;
+    .select()
+    .from(templates)
+    .where(and(eq(templates.id, Number(req.params.id)), eq(templates.user_id, req.userId!)))
+    .get();
 
   if (!existing) {
     res.status(404).json({ error: 'Template not found' });
@@ -120,22 +131,29 @@ router.put('/:id', (req: Request, res: Response) => {
   const { name, description, json_data } = req.body;
   const jsonStr = json_data ? JSON.stringify(json_data) : existing.json_data;
 
-  db.prepare(
-    `UPDATE templates SET name = COALESCE(?, name), description = COALESCE(?, description),
-     json_data = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-  ).run(name, description, jsonStr, req.params.id);
+  const updated = db
+    .update(templates)
+    .set({
+      name: name ?? existing.name,
+      description: description ?? existing.description,
+      json_data: jsonStr,
+      updated_at: sql`CURRENT_TIMESTAMP`,
+    })
+    .where(eq(templates.id, Number(req.params.id)))
+    .returning()
+    .get();
 
   syncTemplateExercises(Number(req.params.id), jsonStr);
 
-  const updated = db.prepare('SELECT * FROM templates WHERE id = ?').get(req.params.id) as Template;
   res.json({ ...updated, json_data: JSON.parse(updated.json_data) });
 });
 
 // Delete template
 router.delete('/:id', (req: Request, res: Response) => {
   const result = db
-    .prepare('DELETE FROM templates WHERE id = ? AND user_id = ?')
-    .run(req.params.id, req.userId!);
+    .delete(templates)
+    .where(and(eq(templates.id, Number(req.params.id)), eq(templates.user_id, req.userId!)))
+    .run();
 
   if (result.changes === 0) {
     res.status(404).json({ error: 'Template not found' });
@@ -145,19 +163,20 @@ router.delete('/:id', (req: Request, res: Response) => {
   res.status(204).send();
 });
 
-// Start workout from template
+// Start workout from template — uses raw sqlite for complex JOINs and progressive overload logic
 router.post('/:id/start', (req: Request, res: Response) => {
-  const template = db
+  const template = sqlite
     .prepare('SELECT * FROM templates WHERE id = ? AND user_id = ?')
-    .get(req.params.id, req.userId!) as Template | undefined;
+    .get(Number(req.params.id), req.userId!) as
+    | { id: number; name: string; json_data: string }
+    | undefined;
 
   if (!template) {
     res.status(404).json({ error: 'Template not found' });
     return;
   }
 
-  // Create workout
-  const workoutResult = db
+  const workoutResult = sqlite
     .prepare(
       'INSERT INTO workouts (user_id, template_id, name, started_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
     )
@@ -165,17 +184,22 @@ router.post('/:id/start', (req: Request, res: Response) => {
 
   const workoutId = workoutResult.lastInsertRowid as number;
 
-  // Get template exercises with names
-  const exercises = db
+  const templateExerciseRows = sqlite
     .prepare(
       `SELECT te.*, e.name as exercise_name FROM template_exercises te
        JOIN exercises e ON te.exercise_id = e.id
        WHERE te.template_id = ? ORDER BY te.order_index`
     )
-    .all(template.id) as (TemplateExerciseRow & { exercise_name: string })[];
+    .all(template.id) as Array<{
+    exercise_id: number;
+    sets: number;
+    reps: string;
+    rest_seconds: number | null;
+    set_type: string;
+    exercise_name: string;
+  }>;
 
-  // Get last workout data for progressive overload
-  const lastWorkout = db
+  const lastWorkout = sqlite
     .prepare(
       `SELECT id FROM workouts
        WHERE user_id = ? AND template_id = ? AND finished_at IS NOT NULL
@@ -183,7 +207,7 @@ router.post('/:id/start', (req: Request, res: Response) => {
     )
     .get(req.userId!, template.id) as { id: number } | undefined;
 
-  const insertSet = db.prepare(
+  const insertSet = sqlite.prepare(
     `INSERT INTO workout_sets (workout_id, exercise_id, set_index, set_type, reps, weight, to_failure)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   );
@@ -199,11 +223,10 @@ router.post('/:id/start', (req: Request, res: Response) => {
     last_reps: number | null;
   }> = [];
 
-  for (const ex of exercises) {
-    // Get last performance for this exercise
+  for (const ex of templateExerciseRows) {
     let lastSets: Array<{ set_index: number; weight: number; reps: number }> = [];
     if (lastWorkout) {
-      lastSets = db
+      lastSets = sqlite
         .prepare(
           `SELECT set_index, weight, reps FROM workout_sets
            WHERE workout_id = ? AND exercise_id = ? AND completed = 1
@@ -239,7 +262,15 @@ router.post('/:id/start', (req: Request, res: Response) => {
     }
   }
 
-  const workout = db.prepare('SELECT * FROM workouts WHERE id = ?').get(workoutId) as Workout;
+  const workout = sqlite.prepare('SELECT * FROM workouts WHERE id = ?').get(workoutId) as {
+    id: number;
+    user_id: number;
+    template_id: number;
+    name: string;
+    started_at: string;
+    finished_at: string | null;
+    notes: string | null;
+  };
 
   res.status(201).json({
     ...workout,

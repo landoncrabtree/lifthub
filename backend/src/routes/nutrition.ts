@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
-import db from '../db/connection.js';
+import db, { sqlite } from '../db/connection.js';
+import { nutritionProfiles, foodLog, weightLog } from '../db/schema.js';
+import { eq, and, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
@@ -68,22 +70,28 @@ router.post('/onboard', (req: Request, res: Response) => {
   const height_in = Number(height_ft) * 12 + Number(inchPart);
   const computed = computeNutrition({ height_in, weight_lbs, age, sex, activity_level, goal });
 
-  const result = db.prepare(
-    `INSERT INTO nutrition_profiles
-       (user_id, height_in, weight_lbs, age, sex, activity_level, goal, bmr, tdee, calorie_target, protein_g, carbs_g, fat_g)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    req.userId!, height_in, weight_lbs, age, sex, activity_level, goal,
-    computed.bmr, computed.tdee, computed.calorie_target, computed.protein_g, computed.carbs_g, computed.fat_g
-  );
+  const profile = db.insert(nutritionProfiles).values({
+    user_id: req.userId!,
+    height_in,
+    weight_lbs,
+    age,
+    sex,
+    activity_level,
+    goal,
+    bmr: computed.bmr,
+    tdee: computed.tdee,
+    calorie_target: computed.calorie_target,
+    protein_g: computed.protein_g,
+    carbs_g: computed.carbs_g,
+    fat_g: computed.fat_g,
+  }).returning().get();
 
-  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(profile);
 });
 
 // GET /profile — Get current nutrition profile
 router.get('/profile', (req: Request, res: Response) => {
-  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!);
+  const profile = db.select().from(nutritionProfiles).where(eq(nutritionProfiles.user_id, req.userId!)).get();
 
   if (!profile) {
     res.status(404).json({ error: 'Nutrition profile not found' });
@@ -95,9 +103,7 @@ router.get('/profile', (req: Request, res: Response) => {
 
 // PUT /profile — Update nutrition profile
 router.put('/profile', (req: Request, res: Response) => {
-  const existing = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!) as {
-    height_in: number; weight_lbs: number; age: number; sex: string; activity_level: string; goal: string;
-  } | undefined;
+  const existing = db.select().from(nutritionProfiles).where(eq(nutritionProfiles.user_id, req.userId!)).get();
 
   if (!existing) {
     res.status(404).json({ error: 'Nutrition profile not found. Use POST /onboard first.' });
@@ -122,19 +128,23 @@ router.put('/profile', (req: Request, res: Response) => {
 
   const computed = computeNutrition(merged);
 
-  db.prepare(
-    `UPDATE nutrition_profiles SET
-       height_in = ?, weight_lbs = ?, age = ?, sex = ?, activity_level = ?, goal = ?,
-       bmr = ?, tdee = ?, calorie_target = ?, protein_g = ?, carbs_g = ?, fat_g = ?,
-       updated_at = CURRENT_TIMESTAMP
-     WHERE user_id = ?`
-  ).run(
-    merged.height_in, merged.weight_lbs, merged.age, merged.sex, merged.activity_level, merged.goal,
-    computed.bmr, computed.tdee, computed.calorie_target, computed.protein_g, computed.carbs_g, computed.fat_g,
-    req.userId!
-  );
+  db.update(nutritionProfiles).set({
+    height_in: merged.height_in,
+    weight_lbs: merged.weight_lbs,
+    age: merged.age,
+    sex: merged.sex,
+    activity_level: merged.activity_level,
+    goal: merged.goal,
+    bmr: computed.bmr,
+    tdee: computed.tdee,
+    calorie_target: computed.calorie_target,
+    protein_g: computed.protein_g,
+    carbs_g: computed.carbs_g,
+    fat_g: computed.fat_g,
+    updated_at: sql`CURRENT_TIMESTAMP`,
+  }).where(eq(nutritionProfiles.user_id, req.userId!)).run();
 
-  const profile = db.prepare('SELECT * FROM nutrition_profiles WHERE user_id = ?').get(req.userId!);
+  const profile = db.select().from(nutritionProfiles).where(eq(nutritionProfiles.user_id, req.userId!)).get();
   res.json(profile);
 });
 
@@ -144,7 +154,7 @@ router.put('/profile', (req: Request, res: Response) => {
 router.get('/daily', (req: Request, res: Response) => {
   const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
 
-  const entries = db.prepare(
+  const entries = sqlite.prepare(
     `SELECT fl.*, COALESCE(f.name, cm.name) as food_name
      FROM food_log fl
      LEFT JOIN foods f ON f.id = fl.food_id
@@ -165,9 +175,12 @@ router.get('/daily', (req: Request, res: Response) => {
     { calories: 0, protein_g: 0, carbs_g: 0, fat_g: 0 }
   );
 
-  const profile = db.prepare(
-    'SELECT calorie_target, protein_g, carbs_g, fat_g FROM nutrition_profiles WHERE user_id = ?'
-  ).get(req.userId!) as { calorie_target: number; protein_g: number; carbs_g: number; fat_g: number } | undefined;
+  const profile = db.select({
+    calorie_target: nutritionProfiles.calorie_target,
+    protein_g: nutritionProfiles.protein_g,
+    carbs_g: nutritionProfiles.carbs_g,
+    fat_g: nutritionProfiles.fat_g,
+  }).from(nutritionProfiles).where(eq(nutritionProfiles.user_id, req.userId!)).get();
 
   const targets = profile
     ? { calories: profile.calorie_target, protein_g: profile.protein_g, carbs_g: profile.carbs_g, fat_g: profile.fat_g }
@@ -182,7 +195,7 @@ router.get('/daily', (req: Request, res: Response) => {
 router.get('/log', (req: Request, res: Response) => {
   const days = Number(req.query.days) || 30;
 
-  const rows = db.prepare(
+  const rows = sqlite.prepare(
     `SELECT date,
             SUM(calories) as total_calories,
             SUM(protein_g) as total_protein,
@@ -202,7 +215,7 @@ router.get('/log', (req: Request, res: Response) => {
 router.get('/recent', (req: Request, res: Response) => {
   const limit = Math.min(Number(req.query.limit) || 10, 50);
 
-  const entries = db.prepare(
+  const entries = sqlite.prepare(
     `SELECT fl.id, fl.date, fl.meal_type, fl.calories, fl.protein_g, fl.carbs_g, fl.fat_g, fl.logged_at,
             COALESCE(f.name, cm.name) as food_name
      FROM food_log fl
@@ -232,7 +245,7 @@ router.post('/log', (req: Request, res: Response) => {
   let fat_g = 0;
 
   if (food_id) {
-    const food = db.prepare('SELECT * FROM foods WHERE id = ?').get(food_id) as {
+    const food = sqlite.prepare('SELECT * FROM foods WHERE id = ?').get(food_id) as {
       calories: number; protein_g: number; carbs_g: number; fat_g: number;
     } | undefined;
 
@@ -246,7 +259,7 @@ router.post('/log', (req: Request, res: Response) => {
     carbs_g = food.carbs_g * s;
     fat_g = food.fat_g * s;
   } else if (custom_meal_id) {
-    const meal = db.prepare(
+    const meal = sqlite.prepare(
       'SELECT calories, protein_g, carbs_g, fat_g FROM custom_meals WHERE id = ?'
     ).get(custom_meal_id) as {
       calories: number; protein_g: number; carbs_g: number; fat_g: number;
@@ -263,26 +276,25 @@ router.post('/log', (req: Request, res: Response) => {
     fat_g = meal.fat_g * s;
   }
 
-  const result = db.prepare(
-    `INSERT INTO food_log (user_id, date, meal_type, food_id, custom_meal_id, servings, calories, protein_g, carbs_g, fat_g)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    req.userId!, date, meal_type,
-    food_id || null, custom_meal_id || null,
-    s,
-    Math.round(calories * 10) / 10,
-    Math.round(protein_g * 10) / 10,
-    Math.round(carbs_g * 10) / 10,
-    Math.round(fat_g * 10) / 10
-  );
+  const entry = db.insert(foodLog).values({
+    user_id: req.userId!,
+    date,
+    meal_type,
+    food_id: food_id || null,
+    custom_meal_id: custom_meal_id || null,
+    servings: s,
+    calories: Math.round(calories * 10) / 10,
+    protein_g: Math.round(protein_g * 10) / 10,
+    carbs_g: Math.round(carbs_g * 10) / 10,
+    fat_g: Math.round(fat_g * 10) / 10,
+  }).returning().get();
 
-  const entry = db.prepare('SELECT * FROM food_log WHERE id = ?').get(result.lastInsertRowid);
   res.status(201).json(entry);
 });
 
 // DELETE /log/:id — Delete a food log entry
 router.delete('/log/:id', (req: Request, res: Response) => {
-  const result = db.prepare('DELETE FROM food_log WHERE id = ? AND user_id = ?').run(req.params.id, req.userId!);
+  const result = db.delete(foodLog).where(and(eq(foodLog.id, Number(req.params.id)), eq(foodLog.user_id, req.userId!))).run();
 
   if (result.changes === 0) {
     res.status(404).json({ error: 'Food log entry not found' });
@@ -298,7 +310,7 @@ router.delete('/log/:id', (req: Request, res: Response) => {
 router.get('/weight-log', (req: Request, res: Response) => {
   const days = Number(req.query.days) || 90;
 
-  const entries = db.prepare(
+  const entries = sqlite.prepare(
     `SELECT * FROM weight_log
      WHERE user_id = ? AND date >= date('now', '-' || ? || ' days')
      ORDER BY date DESC`
@@ -316,12 +328,19 @@ router.post('/weight-log', (req: Request, res: Response) => {
     return;
   }
 
-  db.prepare(
-    `INSERT OR REPLACE INTO weight_log (user_id, date, weight_lbs, notes)
-     VALUES (?, ?, ?, ?)`
-  ).run(req.userId!, date, weight_lbs, notes || null);
+  db.insert(weightLog).values({
+    user_id: req.userId!,
+    date,
+    weight_lbs,
+    notes: notes || null,
+  }).onConflictDoUpdate({
+    target: [weightLog.user_id, weightLog.date],
+    set: { weight_lbs, notes: notes || null },
+  }).run();
 
-  const entry = db.prepare('SELECT * FROM weight_log WHERE user_id = ? AND date = ?').get(req.userId!, date);
+  const entry = db.select().from(weightLog)
+    .where(and(eq(weightLog.user_id, req.userId!), eq(weightLog.date, date)))
+    .get();
   res.json(entry);
 });
 
@@ -332,7 +351,7 @@ router.get('/charts', (req: Request, res: Response) => {
   const userId = req.userId!;
 
   // Last 30 days of daily calorie totals
-  const calorieRows = db.prepare(
+  const calorieRows = sqlite.prepare(
     `SELECT date, SUM(calories) as calories
      FROM food_log
      WHERE user_id = ? AND date >= date('now', '-30 days')
@@ -341,9 +360,10 @@ router.get('/charts', (req: Request, res: Response) => {
   ).all(userId) as Array<{ date: string; calories: number }>;
 
   // Get profile for target/TDEE
-  const profile = db.prepare(
-    'SELECT calorie_target, tdee FROM nutrition_profiles WHERE user_id = ?'
-  ).get(userId) as { calorie_target: number; tdee: number } | undefined;
+  const profile = db.select({
+    calorie_target: nutritionProfiles.calorie_target,
+    tdee: nutritionProfiles.tdee,
+  }).from(nutritionProfiles).where(eq(nutritionProfiles.user_id, userId)).get();
 
   const target = profile?.calorie_target ?? null;
   const tdee = profile?.tdee ?? null;
@@ -355,7 +375,7 @@ router.get('/charts', (req: Request, res: Response) => {
   }));
 
   // Weight trend
-  const weight_trend = db.prepare(
+  const weight_trend = sqlite.prepare(
     `SELECT date, weight_lbs
      FROM weight_log
      WHERE user_id = ? AND date >= date('now', '-90 days')

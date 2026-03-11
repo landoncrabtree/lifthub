@@ -19,42 +19,83 @@ Volumes:
 
 ## Backend
 
-**Stack**: Express.js, TypeScript, better-sqlite3, Zod, JWT (jsonwebtoken + bcryptjs)
+**Stack**: Express.js, TypeScript, Drizzle ORM, better-sqlite3, Zod, JWT (jsonwebtoken + bcryptjs)
 
 **Entry point**: `backend/src/index.ts`
 
 ```
 backend/src/
 ├── db/
-│   ├── connection.ts       SQLite connection (WAL mode, foreign keys on)
-│   ├── migrate.ts          Schema creation and migrations
-│   └── seed.ts             93 default exercises across 13 muscle groups
+│   ├── connection.ts       SQLite connection + Drizzle instance
+│   ├── schema.ts           Drizzle table definitions (source of truth)
+│   ├── migrate.ts          Runs Drizzle migration files
+│   └── seed.ts             93 exercises + 97 USDA foods
 ├── middleware/
 │   ├── auth.ts             JWT access/refresh token auth
 │   └── errorHandler.ts     Global error handler
 ├── routes/
 │   ├── auth.ts             POST /register, /login, /refresh
 │   ├── exercises.ts        CRUD /exercises
+│   ├── foods.ts            CRUD /foods, barcode lookup, custom meals
 │   ├── templates.ts        CRUD /templates, POST /templates/:id/start
 │   ├── workouts.ts         CRUD /workouts, PUT /workouts/:id/sets/:setId
-│   └── progress.ts         GET /progress/summary, /progress/exercise/:id
+│   ├── progress.ts         GET /progress/summary, /progress/exercise/:id
+│   └── nutrition.ts        Nutrition profiles, food log, weight log, charts
 ├── types/
-│   └── index.ts            Shared TypeScript interfaces
+│   └── index.ts            Express request augmentation
 └── index.ts                Express app setup, route mounting
 ```
 
-### Database
+### Database (Drizzle ORM)
 
-SQLite with WAL mode and 5s busy timeout. Schema:
+SQLite with WAL mode, foreign keys enabled, and 5s busy timeout. **Drizzle ORM** manages the schema and migrations.
 
+**Two database exports** from `connection.ts`:
+- `db` (default) — Drizzle query builder for type-safe CRUD operations
+- `sqlite` — Raw better-sqlite3 instance for complex aggregations, JOINs, and date functions
+
+**Schema** is defined in `db/schema.ts` using Drizzle's `sqliteTable()` builder. This file is the single source of truth for the database structure.
+
+**Tables**:
 - `users` — email, username, password_hash
 - `exercises` — name, muscle_group, equipment, description (per-user + seeded)
 - `templates` — name, description, json_data (exercise configuration)
 - `template_exercises` — normalized exercise rows for a template
 - `workouts` — started_at, finished_at, linked to template
 - `workout_sets` — weight, reps, rpe, set_type, completed flag
+- `nutrition_profiles` — height, weight, age, sex, activity level, macros
+- `foods` — name, brand, serving size, macros, source (custom/usda/openfoodfacts)
+- `custom_meals` / `custom_meal_items` — user-defined meal presets
+- `food_log` — daily food intake entries
+- `weight_log` — body weight tracking
 
 Stale workouts (unfinished for 24+ hours) are auto-closed on list queries.
+
+### Schema Migrations (Drizzle Kit)
+
+Drizzle Kit provides incremental, SQL-based migrations:
+
+```bash
+# After changing db/schema.ts, generate a migration:
+npm run db:generate
+
+# Apply pending migrations:
+npm run db:migrate
+
+# Push schema directly (dev only, no migration file):
+npm run db:push
+
+# Open Drizzle Studio (visual DB browser):
+npm run db:studio
+```
+
+**Migration workflow** for future schema changes:
+1. Edit `backend/src/db/schema.ts` (add/remove/modify columns/tables)
+2. Run `npm run db:generate` — Drizzle diffs the schema and generates a `.sql` file in `backend/drizzle/`
+3. Run `npm run db:migrate` — applies the SQL migration to the database
+4. Commit the migration file alongside the schema change
+
+Migrations are stored in `backend/drizzle/` as numbered `.sql` files. They run automatically on app startup via `migrate()` in `index.ts`.
 
 ### Authentication
 

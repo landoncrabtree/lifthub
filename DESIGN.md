@@ -104,3 +104,21 @@ On login and app load, `prefetchAll()` fires parallel `get()` calls for all comm
 **Frontend loading guard pattern:**
 
 Pages use `if (loading && !data)` instead of `if (loading)` for skeleton guards. This prevents a loading flash when cached data resolves instantly — skeletons only appear on truly cold loads (first visit after login).
+
+### Database Layer (Drizzle ORM)
+
+The backend uses **Drizzle ORM** for type-safe database access with incremental schema migrations.
+
+**Dual export pattern** — `connection.ts` exports both:
+- `db` (Drizzle instance) — used for standard CRUD: `db.select()`, `db.insert()`, `db.update()`, `db.delete()`
+- `sqlite` (raw better-sqlite3) — used for complex aggregations, multi-table JOINs, and SQLite date functions that are hard to express in the query builder
+
+**Schema as code** — All tables are defined in `db/schema.ts` using `sqliteTable()`. This file is the single source of truth; Drizzle Kit diffs it against the database to generate incremental `.sql` migration files.
+
+**Migration workflow:**
+1. Edit `backend/src/db/schema.ts`
+2. `npm run db:generate` — generates a timestamped `.sql` file in `backend/drizzle/`
+3. `npm run db:migrate` — applies pending migrations
+4. Migrations run automatically on app startup
+
+This replaces the previous raw `CREATE TABLE IF NOT EXISTS` approach, which couldn't handle column additions, renames, or other schema changes without recreating the database.

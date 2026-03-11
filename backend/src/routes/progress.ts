@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express';
-import db from '../db/connection.js';
+import { sqlite } from '../db/connection.js';
 import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
@@ -11,7 +11,7 @@ router.get('/exercise/:id', (req: Request, res: Response) => {
   const limit = Number(req.query.limit) || 50;
 
   // Get historical set data grouped by workout date
-  const data = db
+  const data = sqlite
     .prepare(
       `SELECT
          w.started_at as date,
@@ -54,14 +54,14 @@ router.get('/summary', (req: Request, res: Response) => {
   const userId = req.userId!;
 
   // Total completed workouts
-  const totalWorkouts = db
+  const totalWorkouts = sqlite
     .prepare(
       'SELECT COUNT(*) as count FROM workouts WHERE user_id = ? AND finished_at IS NOT NULL'
     )
     .get(userId) as { count: number };
 
   // This week's workouts
-  const thisWeek = db
+  const thisWeek = sqlite
     .prepare(
       `SELECT COUNT(*) as count FROM workouts
        WHERE user_id = ? AND finished_at IS NOT NULL
@@ -70,7 +70,7 @@ router.get('/summary', (req: Request, res: Response) => {
     .get(userId) as { count: number };
 
   // Current streak (consecutive days with workouts)
-  const recentDates = db
+  const recentDates = sqlite
     .prepare(
       `SELECT DISTINCT date(started_at) as workout_date
        FROM workouts
@@ -108,7 +108,7 @@ router.get('/summary', (req: Request, res: Response) => {
   }
 
   // Personal records (heaviest set per exercise)
-  const prs = db
+  const prs = sqlite
     .prepare(
       `SELECT e.name as exercise_name, MAX(ws.weight) as weight, w.started_at as date
        FROM workout_sets ws
@@ -122,7 +122,7 @@ router.get('/summary', (req: Request, res: Response) => {
     .all(userId) as Array<{ exercise_name: string; weight: number; date: string }>;
 
   // Workout dates for heatmap (last 365 days)
-  const heatmap = db
+  const heatmap = sqlite
     .prepare(
       `SELECT date(started_at) as date, COUNT(*) as count
        FROM workouts

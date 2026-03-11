@@ -1,13 +1,14 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { eq, or } from 'drizzle-orm';
 import db from '../db/connection.js';
+import { users } from '../db/schema.js';
 import {
   generateAccessToken,
   generateRefreshToken,
   verifyToken,
   authMiddleware,
 } from '../middleware/auth.js';
-import type { User } from '../types/index.js';
 
 const router = Router();
 
@@ -26,8 +27,10 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const existing = db
-      .prepare('SELECT id FROM users WHERE email = ? OR username = ?')
-      .get(email, username) as User | undefined;
+      .select({ id: users.id })
+      .from(users)
+      .where(or(eq(users.email, email), eq(users.username, username)))
+      .get();
 
     if (existing) {
       res.status(409).json({ error: 'Email or username already taken' });
@@ -35,18 +38,19 @@ router.post('/register', async (req: Request, res: Response) => {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
-    const result = db
-      .prepare('INSERT INTO users (email, username, password_hash) VALUES (?, ?, ?)')
-      .run(email, username, passwordHash);
+    const newUser = db
+      .insert(users)
+      .values({ email, username, password_hash: passwordHash })
+      .returning()
+      .get();
 
-    const userId = result.lastInsertRowid as number;
-    const accessToken = generateAccessToken(userId);
-    const refreshToken = generateRefreshToken(userId);
+    const accessToken = generateAccessToken(newUser.id);
+    const refreshToken = generateRefreshToken(newUser.id);
 
     res.status(201).json({
       accessToken,
       refreshToken,
-      user: { id: userId, email, username, created_at: new Date().toISOString() },
+      user: { id: newUser.id, email: newUser.email, username: newUser.username, created_at: newUser.created_at },
     });
   } catch (err) {
     console.error('Register error:', err);
@@ -64,8 +68,10 @@ router.post('/login', async (req: Request, res: Response) => {
     }
 
     const user = db
-      .prepare('SELECT * FROM users WHERE email = ?')
-      .get(email) as User | undefined;
+      .select()
+      .from(users)
+      .where(eq(users.email, email))
+      .get();
 
     if (!user) {
       res.status(401).json({ error: 'Invalid email or password' });
@@ -117,8 +123,15 @@ router.post('/refresh', (req: Request, res: Response) => {
 
 router.get('/me', authMiddleware, (req: Request, res: Response) => {
   const user = db
-    .prepare('SELECT id, email, username, created_at FROM users WHERE id = ?')
-    .get(req.userId!) as Omit<User, 'password_hash'> | undefined;
+    .select({
+      id: users.id,
+      email: users.email,
+      username: users.username,
+      created_at: users.created_at,
+    })
+    .from(users)
+    .where(eq(users.id, req.userId!))
+    .get();
 
   if (!user) {
     res.status(404).json({ error: 'User not found' });
