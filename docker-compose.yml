@@ -22,7 +22,7 @@ services:
     restart: unless-stopped
 
   caddy:
-    image: caddy:2-alpine
+    image: ghcr.io/caddybuilds/caddy-cloudflare:latest
     ports:
       - "80:80"
       - "443:443"
@@ -33,7 +33,8 @@ services:
       - caddy-data:/data
       - caddy-config:/config
     environment:
-      - DOMAIN=${DOMAIN:-localhost}
+      - DOMAIN=${DOMAIN}
+      - CLOUDFLARE_API_TOKEN=${CLOUDFLARE_API_TOKEN}
     depends_on:
       - backend
       - frontend
