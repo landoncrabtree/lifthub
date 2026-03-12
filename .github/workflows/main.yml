@@ -27,6 +27,9 @@ jobs:
             sudo docker compose build
             sudo docker compose up -d --force-recreate --remove-orphans
           EOF
+      
+      - name: Wait for everything to be ready
+        run: sleep 15
 
       - name: Health check
         run: |
