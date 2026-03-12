@@ -36,11 +36,11 @@ const sections: NavSection[] = [
   {
     label: 'Workouts',
     icon: Dumbbell,
-    to: '/exercises',
+    to: '/templates',
     matchPrefix: '/workouts-section', // custom matching below
     items: [
-      { to: '/exercises', label: 'Exercises', icon: Dumbbell },
       { to: '/templates', label: 'Templates', icon: ClipboardList },
+      { to: '/exercises', label: 'Exercises', icon: Dumbbell },
       { to: '/stats', label: 'Stats', icon: CalendarDays },
     ],
   },
@@ -244,7 +244,7 @@ function MobileNav() {
       isActive: pathname === '/',
     },
     {
-      to: '/exercises',
+      to: '/templates',
       label: 'Workouts',
       icon: Dumbbell,
       isActive: isWorkoutPath(pathname),
