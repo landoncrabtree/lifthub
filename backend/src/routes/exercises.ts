@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import db from '../db/connection.js';
-import { exercises } from '../db/schema.js';
+import { exercises, templates, templateExercises, workoutSets } from '../db/schema.js';
 import { eq, and, or, like, isNull, asc } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 
@@ -87,17 +87,45 @@ router.put('/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-// Delete custom exercise
+// Delete custom exercise (cascades to template_exercises and workout_sets)
 router.delete('/:id', (req: Request, res: Response) => {
-  const result = db
-    .delete(exercises)
-    .where(and(eq(exercises.id, Number(req.params.id)), eq(exercises.user_id, req.userId!)))
-    .run();
+  const exerciseId = Number(req.params.id);
 
-  if (result.changes === 0) {
+  const existing = db
+    .select()
+    .from(exercises)
+    .where(and(eq(exercises.id, exerciseId), eq(exercises.user_id, req.userId!)))
+    .get();
+
+  if (!existing) {
     res.status(404).json({ error: 'Exercise not found or not deletable' });
     return;
   }
+
+  db.transaction((tx) => {
+    tx.delete(templateExercises).where(eq(templateExercises.exercise_id, exerciseId)).run();
+    tx.delete(workoutSets).where(eq(workoutSets.exercise_id, exerciseId)).run();
+
+    // Strip the exercise from any template json_data blobs
+    const userTemplates = tx
+      .select({ id: templates.id, json_data: templates.json_data })
+      .from(templates)
+      .where(eq(templates.user_id, req.userId!))
+      .all();
+
+    for (const t of userTemplates) {
+      const entries = JSON.parse(t.json_data) as { exercise_id: number }[];
+      const filtered = entries.filter((e) => e.exercise_id !== exerciseId);
+      if (filtered.length !== entries.length) {
+        tx.update(templates)
+          .set({ json_data: JSON.stringify(filtered) })
+          .where(eq(templates.id, t.id))
+          .run();
+      }
+    }
+
+    tx.delete(exercises).where(eq(exercises.id, exerciseId)).run();
+  });
 
   res.status(204).send();
 });

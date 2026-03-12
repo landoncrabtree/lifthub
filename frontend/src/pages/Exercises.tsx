@@ -139,6 +139,7 @@ export default function Exercises() {
       setDeleteTarget(null);
       fetchExercises();
     } catch (err) {
+      setDeleteTarget(null);
       setError(err instanceof Error ? err.message : 'Failed to delete exercise');
     } finally {
       setDeleting(false);
@@ -338,7 +339,7 @@ export default function Exercises() {
         }
       >
         <p className="text-sm text-[var(--color-text-secondary)]">
-          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will also remove it from any templates using it.
+          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will also remove it from any templates and workouts using it.
         </p>
       </Modal>
     </div>
