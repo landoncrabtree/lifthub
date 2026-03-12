@@ -23,6 +23,7 @@ jobs:
           ssh ${{ secrets.SSH_USER }}@${{ secrets.SERVER_IP }} << 'EOF'
             cd ${{ secrets.REPO_PATH }}
             git pull https://${{ secrets.GIT_PAT }}@github.com/landoncrabtree/landon.pw-dockerized.git
+            sudo docker compose down
             sudo docker compose build
             sudo docker compose up -d --force-recreate --remove-orphans
           EOF
