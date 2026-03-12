@@ -6,6 +6,7 @@ import {
 import { Scale, TrendingUp, Flame, Plus } from 'lucide-react';
 import { useFetch } from '@/hooks/useFetch';
 import { post } from '@/api/client';
+import { hapticLight } from '@/lib/haptics';
 import type { NutritionChartData } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -45,6 +46,7 @@ export default function NutritionCharts() {
         notes: weightNotes || undefined,
       });
       setWeightModal(false);
+      hapticLight();
       setWeightLbs('');
       setWeightNotes('');
       setWeightDate(todayStr());

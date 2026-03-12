@@ -7,17 +7,41 @@
 	}
 }
 
+# HTTP → HTTPS redirect
+http://{$DOMAIN}:8080 {
+    redir https://{$DOMAIN}:8443{uri} permanent
+}
+
 {$DOMAIN}:8443 {
 
     root * /srv/frontend
-    encode gzip
+    encode gzip zstd
 
+    # API reverse proxy
     handle /api/* {
         reverse_proxy backend:3001
     }
 
-    @static path *.js *.css *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff2
-    header @static Cache-Control "public, max-age=31536000, immutable"
+    # Hashed assets (in /assets/) — cache forever
+    @hashed path /assets/*
+    header @hashed Cache-Control "public, max-age=31536000, immutable"
+
+    # Unhashed static files — cache with revalidation
+    @unhashed {
+        path *.png *.jpg *.jpeg *.gif *.ico *.svg *.woff2 *.webp *.wasm
+        not path /assets/*
+    }
+    header @unhashed Cache-Control "public, max-age=86400, must-revalidate"
+
+    # Service worker — always revalidate
+    @sw path /sw.js /registerSW.js /workbox-*.js
+    header @sw Cache-Control "public, max-age=0, must-revalidate"
+
+    # HTML and manifest — never stale
+    @nocache {
+        path / *.html /manifest.json
+    }
+    header @nocache Cache-Control "no-cache"
 
     handle {
         try_files {path} /index.html

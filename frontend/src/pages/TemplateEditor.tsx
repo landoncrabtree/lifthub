@@ -20,6 +20,7 @@ import {
 import { CSS } from '@dnd-kit/utilities';
 import { Save, Plus, X, GripVertical, AlertCircle, Copy, ChevronDown, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { hapticLight } from '@/lib/haptics';
 import { get, post, put } from '@/api/client';
 import { useToast } from '@/contexts/ToastContext';
 import type { Template, TemplateExercise, Exercise, SetType, MuscleGroup, Equipment } from '@/types';
@@ -488,10 +489,12 @@ export default function TemplateEditor() {
       if (isNew) {
         const created = await post<Template>('/templates', body);
         toast('Template created!');
+        hapticLight();
         navigate(`/templates/${created.id}`, { replace: true });
       } else {
         await put<Template>(`/templates/${id}`, body);
         toast('Changes saved!');
+        hapticLight();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save template');
@@ -526,6 +529,7 @@ export default function TemplateEditor() {
       }
       setShowCreateExercise(false);
       toast('Exercise created!');
+      hapticLight();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create exercise');
     } finally {

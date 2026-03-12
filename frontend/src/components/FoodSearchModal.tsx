@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { BarcodeScanner } from 'web-wasm-barcode-reader';
 import { get, post } from '@/api/client';
+import { hapticLight } from '@/lib/haptics';
 import { Modal } from '@/components/ui/Modal';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -295,6 +296,7 @@ export default function FoodSearchModal({
       if (selectedMeal) body.custom_meal_id = selectedMeal.id;
 
       await post('/nutrition/log', body);
+      hapticLight();
       onLogged();
       onClose();
     } catch {
@@ -320,6 +322,7 @@ export default function FoodSearchModal({
         fat_g: parseFloat(createForm.fat_g),
       });
       selectFood(food);
+      hapticLight();
     } catch {
       setCreateError('Failed to create food. Check your inputs.');
     } finally {

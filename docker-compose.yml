@@ -24,6 +24,7 @@ services:
   caddy:
     image: ghcr.io/caddybuilds/caddy-cloudflare:alpine
     ports:
+      - "8080:8080"
       - "8443:8443"
       - "8443:8443/udp"
     volumes:

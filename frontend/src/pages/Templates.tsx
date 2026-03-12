@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Play, Pencil, Trash2, FileText } from 'lucide-react';
 import { post, del } from '@/api/client';
+import { hapticLight, hapticMedium } from '@/lib/haptics';
 import { useFetch } from '@/hooks/useFetch';
 import type { Template, Workout } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -31,6 +32,7 @@ export default function Templates() {
     setStartingId(templateId);
     try {
       const workout = await post<Workout>(`/templates/${templateId}/start`, {});
+      hapticLight();
       navigate(`/workout/${workout.id}`);
     } catch {
       setStartingId(null);
@@ -42,6 +44,7 @@ export default function Templates() {
     setDeleting(true);
     try {
       await del(`/templates/${deleteTarget.id}`);
+      hapticMedium();
       setDeleteTarget(null);
       refetch();
     } catch {

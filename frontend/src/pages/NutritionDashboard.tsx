@@ -7,6 +7,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { get, del } from '@/api/client';
+import { hapticMedium } from '@/lib/haptics';
 import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { SectionNav } from '@/components/ui/SectionNav';
@@ -310,6 +311,7 @@ export default function NutritionDashboard() {
   const handleDelete = useCallback(
     async (id: number) => {
       await del(`/nutrition/log/${id}`);
+      hapticMedium();
       // Refetch
       const data = await get<DailySummary>(
         `/nutrition/daily?date=${formatDate(selectedDate)}`,

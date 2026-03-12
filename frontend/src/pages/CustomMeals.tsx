@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2, Pencil, UtensilsCrossed } from 'lucide-react';
 import { get, post, put, del } from '@/api/client';
 import { useToast } from '@/contexts/ToastContext';
+import { hapticLight, hapticMedium } from '@/lib/haptics';
 import type { CustomMeal } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -112,9 +113,11 @@ export default function CustomMeals() {
       if (editingId) {
         await put(`/foods/custom-meals/${editingId}`, body);
         toast('Meal updated', 'success');
+        hapticLight();
       } else {
         await post('/foods/custom-meals', body);
         toast('Meal created', 'success');
+        hapticLight();
       }
       closeModal();
       fetchMeals();
@@ -131,6 +134,7 @@ export default function CustomMeals() {
     try {
       await del(`/foods/custom-meals/${id}`);
       toast('Meal deleted', 'success');
+      hapticMedium();
       fetchMeals();
     } catch (err) {
       toast(err instanceof Error ? err.message : 'Failed to delete meal', 'error');

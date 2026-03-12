@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { CheckCircle2, Clock, Flag } from 'lucide-react';
 import { cn, parseUTC } from '@/lib/utils';
+import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { get, put, invalidateCache } from '@/api/client';
 import { useTimer } from '@/contexts/TimerContext';
 import type { WorkoutDetail, WorkoutSet } from '@/types';
@@ -116,6 +117,7 @@ export default function ActiveWorkout() {
           s.id === setRow.id ? { ...s, completed: true, weight, reps } : s,
         ),
       );
+      hapticLight();
 
       // Start rest timer if there are more incomplete sets for this exercise
       const exerciseSets = sets.filter((s) => s.exercise_id === setRow.exercise_id);
@@ -133,6 +135,7 @@ export default function ActiveWorkout() {
     setFinishing(true);
     try {
       await put(`/workouts/${id}`, { finished: true });
+      hapticSuccess();
       invalidateCache('/progress');
       navigate('/history');
     } catch (err) {

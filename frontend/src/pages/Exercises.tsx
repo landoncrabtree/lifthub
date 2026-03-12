@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Pencil, Trash2, Dumbbell } from 'lucide-react';
 import { get, post, put, del } from '@/api/client';
 import { cn } from '@/lib/utils';
+import { hapticLight, hapticMedium } from '@/lib/haptics';
 import type { Exercise, MuscleGroup, Equipment } from '@/types';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -119,6 +120,7 @@ export default function Exercises() {
       } else {
         await post<Exercise>('/exercises', payload);
       }
+      hapticLight();
       setShowModal(false);
       setEditingExercise(null);
       setFormName('');
@@ -136,6 +138,7 @@ export default function Exercises() {
     setDeleting(true);
     try {
       await del(`/exercises/${deleteTarget.id}`);
+      hapticMedium();
       setDeleteTarget(null);
       fetchExercises();
     } catch (err) {

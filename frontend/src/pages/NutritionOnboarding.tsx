@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { get, post } from '@/api/client';
+import { hapticSuccess } from '@/lib/haptics';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
@@ -118,6 +119,7 @@ export default function NutritionOnboarding() {
         goal,
       });
       navigate('/nutrition', { replace: true });
+      hapticSuccess();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save profile');
     } finally {
