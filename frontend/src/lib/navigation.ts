@@ -9,8 +9,8 @@ import {
 } from 'lucide-react';
 
 export const workoutNavItems = [
-  { to: '/exercises', label: 'Exercises', icon: Dumbbell },
   { to: '/templates', label: 'Templates', icon: ClipboardList },
+  { to: '/exercises', label: 'Exercises', icon: Dumbbell },
   { to: '/stats', label: 'Stats', icon: CalendarDays },
 ];
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Plus, Dumbbell } from 'lucide-react';
-import { get, post } from '@/api/client';
+import { Search, Plus, Pencil, Trash2, Dumbbell } from 'lucide-react';
+import { get, post, put, del } from '@/api/client';
 import { cn } from '@/lib/utils';
 import type { Exercise, MuscleGroup, Equipment } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -47,11 +47,14 @@ export default function Exercises() {
   const [equipmentFilter, setEquipmentFilter] = useState<Equipment | null>(null);
 
   const [showModal, setShowModal] = useState(false);
+  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
   const [formName, setFormName] = useState('');
   const [formMuscle, setFormMuscle] = useState<MuscleGroup>('chest');
   const [formEquipment, setFormEquipment] = useState<Equipment>('barbell');
   const [formDescription, setFormDescription] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Exercise | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const initialMount = useRef(true);
 
@@ -83,24 +86,62 @@ export default function Exercises() {
     return () => clearTimeout(timer);
   }, [fetchExercises]);
 
-  async function handleCreate(e: React.FormEvent) {
+  function openCreateModal() {
+    setEditingExercise(null);
+    setFormName('');
+    setFormMuscle('chest');
+    setFormEquipment('barbell');
+    setFormDescription('');
+    setShowModal(true);
+  }
+
+  function openEditModal(ex: Exercise) {
+    setEditingExercise(ex);
+    setFormName(ex.name);
+    setFormMuscle(ex.muscle_group);
+    setFormEquipment(ex.equipment || 'barbell');
+    setFormDescription(ex.description || '');
+    setShowModal(true);
+  }
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     try {
-      await post<Exercise>('/exercises', {
+      const payload = {
         name: formName,
         muscle_group: formMuscle,
         equipment: formEquipment,
         description: formDescription || null,
-      });
+      };
+      if (editingExercise) {
+        await put<Exercise>(`/exercises/${editingExercise.id}`, payload);
+      } else {
+        await post<Exercise>('/exercises', payload);
+      }
       setShowModal(false);
+      setEditingExercise(null);
       setFormName('');
       setFormDescription('');
       fetchExercises();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create exercise');
+      setError(err instanceof Error ? err.message : 'Failed to save exercise');
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await del(`/exercises/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      fetchExercises();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete exercise');
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -109,7 +150,7 @@ export default function Exercises() {
       <SectionNav items={workoutNavItems} />
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-[var(--color-text)]">Exercises</h1>
-        <Button onClick={() => setShowModal(true)} leftIcon={<Plus className="h-4 w-4" />}>
+        <Button onClick={openCreateModal} leftIcon={<Plus className="h-4 w-4" />}>
           Add Exercise
         </Button>
       </div>
@@ -203,10 +244,29 @@ export default function Exercises() {
           {exercises.map((ex) => (
             <Card key={ex.id}>
               <div className="space-y-2">
-                <h3 className="font-semibold text-[var(--color-text)]">{ex.name}</h3>
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="font-semibold text-[var(--color-text)]">{ex.name}</h3>
+                  {ex.user_id && (
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        onClick={() => openEditModal(ex)}
+                        className="rounded p-1 text-[var(--color-text-tertiary)] hover:bg-[var(--color-bg-tertiary)] hover:text-[var(--color-text)]"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => setDeleteTarget(ex)}
+                        className="rounded p-1 text-[var(--color-text-tertiary)] hover:bg-red-500/10 hover:text-red-500"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge variant="info">{formatLabel(ex.muscle_group)}</Badge>
                   {ex.equipment && <Badge>{formatLabel(ex.equipment)}</Badge>}
+                  {ex.user_id && <Badge variant="success">Custom</Badge>}
                 </div>
                 {ex.description && (
                   <p className="text-xs text-[var(--color-text-secondary)] line-clamp-2">
@@ -219,19 +279,19 @@ export default function Exercises() {
         </div>
       )}
 
-      {/* Add Exercise Modal */}
+      {/* Add/Edit Exercise Modal */}
       <Modal
         open={showModal}
-        onClose={() => setShowModal(false)}
-        title="Add Exercise"
+        onClose={() => { setShowModal(false); setEditingExercise(null); }}
+        title={editingExercise ? 'Edit Exercise' : 'Add Exercise'}
         footer={
           <>
-            <Button variant="outline" onClick={() => setShowModal(false)}>Cancel</Button>
-            <Button loading={saving} onClick={handleCreate}>Create</Button>
+            <Button variant="outline" onClick={() => { setShowModal(false); setEditingExercise(null); }}>Cancel</Button>
+            <Button loading={saving} onClick={handleSave}>{editingExercise ? 'Save' : 'Create'}</Button>
           </>
         }
       >
-        <form id="add-exercise-form" onSubmit={handleCreate} className="space-y-4">
+        <form id="exercise-form" onSubmit={handleSave} className="space-y-4">
           <Input
             label="Name"
             value={formName}
@@ -261,6 +321,25 @@ export default function Exercises() {
             />
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Exercise"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button loading={deleting} onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This will also remove it from any templates using it.
+        </p>
       </Modal>
     </div>
   );

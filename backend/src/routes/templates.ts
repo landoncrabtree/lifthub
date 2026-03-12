@@ -139,7 +139,7 @@ router.put('/:id', (req: Request, res: Response) => {
       json_data: jsonStr,
       updated_at: sql`CURRENT_TIMESTAMP`,
     })
-    .where(eq(templates.id, Number(req.params.id)))
+    .where(and(eq(templates.id, Number(req.params.id)), eq(templates.user_id, req.userId!)))
     .returning()
     .get();
 

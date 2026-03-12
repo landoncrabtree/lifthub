@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Play, Pencil, FileText } from 'lucide-react';
-import { post } from '@/api/client';
+import { Plus, Play, Pencil, Trash2, FileText } from 'lucide-react';
+import { post, del } from '@/api/client';
 import { useFetch } from '@/hooks/useFetch';
 import type { Template, Workout } from '@/types';
 import { Button } from '@/components/ui/Button';
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Skeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { SectionNav } from '@/components/ui/SectionNav';
+import { Modal } from '@/components/ui/Modal';
 import { workoutNavItems } from '@/lib/navigation';
 
 function formatDate(dateStr: string): string {
@@ -21,8 +22,10 @@ function formatDate(dateStr: string): string {
 
 export default function Templates() {
   const navigate = useNavigate();
-  const { data: templates, loading, error } = useFetch<Template[]>('/templates');
+  const { data: templates, loading, error, refetch } = useFetch<Template[]>('/templates');
   const [startingId, setStartingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function handleStartWorkout(templateId: number) {
     setStartingId(templateId);
@@ -31,6 +34,20 @@ export default function Templates() {
       navigate(`/workout/${workout.id}`);
     } catch {
       setStartingId(null);
+    }
+  }
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      await del(`/templates/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      refetch();
+    } catch {
+      // error handled by useFetch
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -113,12 +130,38 @@ export default function Templates() {
                     onClick={() => navigate(`/templates/${t.id}`)}
                     leftIcon={<Pencil className="h-3.5 w-3.5" />}
                   />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setDeleteTarget(t)}
+                    className="text-red-500 hover:bg-red-500/10 border-red-500/30"
+                    leftIcon={<Trash2 className="h-3.5 w-3.5" />}
+                  />
                 </div>
               </div>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      <Modal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        title="Delete Template"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button loading={deleting} onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+        </p>
+      </Modal>
     </div>
   );
 }

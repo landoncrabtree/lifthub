@@ -80,7 +80,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const updated = db
     .update(exercises)
     .set(updates)
-    .where(eq(exercises.id, Number(req.params.id)))
+    .where(and(eq(exercises.id, Number(req.params.id)), eq(exercises.user_id, req.userId!)))
     .returning()
     .get();
 

@@ -94,11 +94,11 @@ router.put('/:id', (req: Request, res: Response) => {
   if (finished) updateData.finished_at = sql`CURRENT_TIMESTAMP`;
 
   if (Object.keys(updateData).length > 0) {
-    db.update(workouts).set(updateData).where(eq(workouts.id, Number(req.params.id))).run();
+    db.update(workouts).set(updateData).where(and(eq(workouts.id, Number(req.params.id)), eq(workouts.user_id, req.userId!))).run();
   }
 
   const updated = db.select().from(workouts)
-    .where(eq(workouts.id, Number(req.params.id)))
+    .where(and(eq(workouts.id, Number(req.params.id)), eq(workouts.user_id, req.userId!)))
     .get();
 
   res.json(updated);

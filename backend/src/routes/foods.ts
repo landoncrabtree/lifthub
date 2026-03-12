@@ -106,7 +106,7 @@ router.put('/custom-meals/:id', (req: Request, res: Response) => {
   const meal = db
     .update(customMeals)
     .set({ ...updates, updated_at: sql`CURRENT_TIMESTAMP` })
-    .where(eq(customMeals.id, Number(req.params.id)))
+    .where(and(eq(customMeals.id, Number(req.params.id)), eq(customMeals.user_id, req.userId!)))
     .returning()
     .get();
 
@@ -269,7 +269,7 @@ router.put('/:id', (req: Request, res: Response) => {
   const updated = db
     .update(foods)
     .set(updates)
-    .where(eq(foods.id, Number(req.params.id)))
+    .where(and(eq(foods.id, Number(req.params.id)), eq(foods.user_id, req.userId!)))
     .returning()
     .get();
 
