@@ -378,14 +378,16 @@ export default function TemplateEditor() {
   }, []);
 
   function rowsToJson(rows: EditorExercise[]): JsonExercise[] {
-    return rows.map((r) => ({
-      exercise_name: exerciseIdToName.get(r.exercise_id) ?? `Unknown (ID: ${r.exercise_id})`,
-      sets: r.sets,
-      reps: String(r.reps),
-      rest_seconds: r.rest_seconds,
-      set_type: r.set_type,
-      notes: r.notes,
-    }));
+    return rows
+      .filter((r) => exerciseIdToName.has(r.exercise_id))
+      .map((r) => ({
+        exercise_name: exerciseIdToName.get(r.exercise_id)!,
+        sets: r.sets,
+        reps: String(r.reps),
+        rest_seconds: r.rest_seconds,
+        set_type: r.set_type,
+        notes: r.notes,
+      }));
   }
 
   function jsonToRows(data: JsonExercise[]): EditorExercise[] {

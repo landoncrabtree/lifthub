@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Plus, Pencil, Trash2, Dumbbell } from 'lucide-react';
-import { get, post, put, del } from '@/api/client';
+import { get, post, put, del, invalidateCache } from '@/api/client';
 import { cn } from '@/lib/utils';
 import { hapticLight, hapticMedium } from '@/lib/haptics';
 import type { Exercise, MuscleGroup, Equipment } from '@/types';
@@ -138,6 +138,7 @@ export default function Exercises() {
     setDeleting(true);
     try {
       await del(`/exercises/${deleteTarget.id}`);
+      invalidateCache('/templates');
       hapticMedium();
       setDeleteTarget(null);
       fetchExercises();
