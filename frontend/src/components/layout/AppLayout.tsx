@@ -261,10 +261,7 @@ function MobileNav() {
   ];
 
   return (
-    <nav
-      className="shrink-0 border-t bg-[var(--color-bg)] md:hidden"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
-    >
+    <nav className="shrink-0 border-t bg-[var(--color-bg)] md:hidden">
       <div className="flex"
         style={{
           paddingLeft: 'env(safe-area-inset-left, 0px)',
