@@ -111,6 +111,9 @@ export default function ActiveWorkout() {
         weight,
         reps,
       });
+      // Invalidate the parent workout cache so navigating away/back shows fresh data
+      invalidateCache(`/workouts/${id}`);
+      invalidateCache('/workouts');
 
       setSets((prev) =>
         prev.map((s) =>
@@ -124,7 +127,7 @@ export default function ActiveWorkout() {
       const hasMoreSets = exerciseSets.some((s) => s.id !== setRow.id && !s.completed);
       const exerciseName = setRow.exercise_name || setRow.exercise?.name;
       if (hasMoreSets && setRow.restSeconds) {
-        startTimer(setRow.restSeconds, exerciseName);
+        startTimer(setRow.restSeconds, exerciseName, Number(id));
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update set');

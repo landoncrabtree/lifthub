@@ -12,7 +12,8 @@ interface TimerContextType {
   seconds: number;
   isRunning: boolean;
   exerciseName: string | null;
-  startTimer: (duration: number, exerciseName?: string) => void;
+  workoutId: number | null;
+  startTimer: (duration: number, exerciseName?: string, workoutId?: number) => void;
   stopTimer: () => void;
 }
 
@@ -53,6 +54,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   const [seconds, setSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
   const [exerciseName, setExerciseName] = useState<string | null>(null);
+  const [workoutId, setWorkoutId] = useState<number | null>(null);
 
   // Absolute end-time avoids setInterval drift and fixes PWA backgrounding
   const endTimeRef = useRef(0);
@@ -72,10 +74,11 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     setIsRunning(false);
     setSeconds(0);
     setExerciseName(null);
+    setWorkoutId(null);
   }, []);
 
   const startTimer = useCallback(
-    (duration: number, name?: string) => {
+    (duration: number, name?: string, wId?: number) => {
       // Clear any existing interval imperatively
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
@@ -88,6 +91,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       setSeconds(duration);
       setExerciseName(name || null);
+      setWorkoutId(wId ?? null);
       setIsRunning(true);
       setEpoch(epochRef.current);
 
@@ -160,7 +164,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   return (
     <TimerContext.Provider
-      value={{ seconds, isRunning, exerciseName, startTimer, stopTimer }}
+      value={{ seconds, isRunning, exerciseName, workoutId, startTimer, stopTimer }}
     >
       {children}
     </TimerContext.Provider>

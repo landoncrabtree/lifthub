@@ -53,11 +53,16 @@
   }
 }
 
-html, body {
-  position: fixed;
-  width: 100%;
+html {
   height: 100%;
   overflow: hidden;
+}
+
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 /* Smooth theme transitions */

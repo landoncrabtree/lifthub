@@ -128,7 +128,8 @@ function UserMenu() {
 }
 
 function RestTimerPill() {
-  const { seconds, isRunning, exerciseName, stopTimer } = useTimer();
+  const { seconds, isRunning, exerciseName, workoutId, stopTimer } = useTimer();
+  const navigate = useNavigate();
 
   if (!isRunning) return null;
 
@@ -136,9 +137,11 @@ function RestTimerPill() {
 
   return (
     <div
+      onClick={() => workoutId && navigate(`/workout/${workoutId}`)}
+      role={workoutId ? 'link' : undefined}
       className={`fixed bottom-20 right-4 z-40 md:bottom-6 flex items-center gap-3 rounded-full border bg-[var(--color-bg)] px-4 py-2 shadow-lg ${
         urgent ? 'animate-pulse border-red-500' : 'border-brand-500'
-      }`}
+      } ${workoutId ? 'cursor-pointer' : ''}`}
     >
       <Timer className={`h-4 w-4 ${urgent ? 'text-red-500' : 'text-brand-500'}`} />
       <div className="text-sm">
@@ -150,7 +153,7 @@ function RestTimerPill() {
         )}
       </div>
       <button
-        onClick={stopTimer}
+        onClick={(e) => { e.stopPropagation(); stopTimer(); }}
         className="rounded-full p-0.5 hover:bg-[var(--color-bg-secondary)] transition-colors"
       >
         <X className="h-4 w-4 text-[var(--color-text-secondary)]" />
@@ -258,7 +261,10 @@ function MobileNav() {
   ];
 
   return (
-    <nav className="shrink-0 border-t bg-[var(--color-bg)] md:hidden">
+    <nav
+      className="shrink-0 border-t bg-[var(--color-bg)] md:hidden"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
+    >
       <div className="flex"
         style={{
           paddingLeft: 'env(safe-area-inset-left, 0px)',
