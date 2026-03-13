@@ -176,6 +176,18 @@ router.post('/:id/start', (req: Request, res: Response) => {
     return;
   }
 
+  // Block starting a second workout if one is already active
+  const activeWorkout = sqlite
+    .prepare('SELECT id, name FROM workouts WHERE user_id = ? AND finished_at IS NULL')
+    .get(req.userId!) as { id: number; name: string } | undefined;
+
+  if (activeWorkout) {
+    res.status(409).json({
+      error: `ACTIVE_WORKOUT:${activeWorkout.id}:${activeWorkout.name}`,
+    });
+    return;
+  }
+
   const workoutResult = sqlite
     .prepare(
       'INSERT INTO workouts (user_id, template_id, name, started_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'

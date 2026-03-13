@@ -27,6 +27,8 @@ export default function Templates() {
   const [startingId, setStartingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Template | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [activeWorkoutId, setActiveWorkoutId] = useState<number | null>(null);
+  const [activeWorkoutName, setActiveWorkoutName] = useState<string | null>(null);
 
   async function handleStartWorkout(templateId: number) {
     setStartingId(templateId);
@@ -34,7 +36,14 @@ export default function Templates() {
       const workout = await post<Workout>(`/templates/${templateId}/start`, {});
       hapticLight();
       navigate(`/workout/${workout.id}`);
-    } catch {
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : '';
+      // ACTIVE_WORKOUT:<id>:<name> — user already has an in-progress workout
+      const match = msg.match(/^ACTIVE_WORKOUT:(\d+):(.+)$/);
+      if (match) {
+        setActiveWorkoutId(Number(match[1]));
+        setActiveWorkoutName(match[2]);
+      }
       setStartingId(null);
     }
   }
@@ -163,6 +172,25 @@ export default function Templates() {
       >
         <p className="text-sm text-[var(--color-text-secondary)]">
           Are you sure you want to delete <strong>{deleteTarget?.name}</strong>? This action cannot be undone.
+        </p>
+      </Modal>
+
+      {/* Active Workout Modal */}
+      <Modal
+        open={!!activeWorkoutId}
+        onClose={() => setActiveWorkoutId(null)}
+        title="Workout In Progress"
+        footer={
+          <>
+            <Button variant="outline" onClick={() => setActiveWorkoutId(null)}>Cancel</Button>
+            <Button onClick={() => navigate(`/workout/${activeWorkoutId}`)}>
+              Resume Workout
+            </Button>
+          </>
+        }
+      >
+        <p className="text-sm text-[var(--color-text-secondary)]">
+          You already have an active workout: <strong>{activeWorkoutName}</strong>. Finish or discard it before starting a new one.
         </p>
       </Modal>
     </div>

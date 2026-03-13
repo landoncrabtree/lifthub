@@ -51,7 +51,7 @@ router.get('/:id', (req: Request, res: Response) => {
      LEFT JOIN workouts w2 ON ws.workout_id = w2.id
      LEFT JOIN template_exercises te ON w2.template_id = te.template_id AND ws.exercise_id = te.exercise_id
      WHERE ws.workout_id = ?
-     ORDER BY ws.exercise_id, ws.set_index`
+     ORDER BY COALESCE(te.order_index, 999999), ws.exercise_id, ws.set_index`
   ).all(workout.id);
 
   res.json({ ...workout, sets });

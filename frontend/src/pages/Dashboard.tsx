@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   PlayCircle,
   Apple,
@@ -79,6 +79,13 @@ export default function Dashboard() {
   const [recentFood, setRecentFood] = useState<RecentFoodEntry[]>([]);
   const [nutritionLoading, setNutritionLoading] = useState(false);
   const [showWeighInReminder, setShowWeighInReminder] = useState(false);
+  const navigate = useNavigate();
+
+  // Detect active (unfinished) workout
+  const activeWorkout = useMemo(() => {
+    if (!workouts) return null;
+    return workouts.find((w) => !w.finished_at) ?? null;
+  }, [workouts]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +190,22 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Active workout banner */}
+      {activeWorkout && (
+        <button
+          onClick={() => navigate(`/workout/${activeWorkout.id}`)}
+          className="w-full flex items-center justify-between rounded-lg border border-brand-500/50 bg-brand-500/10 px-4 py-3 transition-colors hover:bg-brand-500/20"
+        >
+          <div className="flex items-center gap-2 text-sm font-medium text-brand-600 dark:text-brand-400">
+            <Dumbbell className="h-4 w-4 shrink-0 animate-pulse" />
+            <span>You have an active workout: <strong>{activeWorkout.name}</strong></span>
+          </div>
+          <span className="text-xs font-semibold text-brand-600 dark:text-brand-400">
+            Resume →
+          </span>
+        </button>
+      )}
+
       {/* Stats — 2x2 grid */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {loading ? (
@@ -229,14 +252,18 @@ export default function Dashboard() {
 
       {/* Quick actions */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Link to="/templates">
+        <Link to={activeWorkout ? `/workout/${activeWorkout.id}` : '/templates'}>
           <Card className="flex items-center gap-4 hover:border-brand-500/50 transition-colors cursor-pointer">
             <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-600/10 text-brand-600">
-              <PlayCircle className="h-5 w-5" />
+              {activeWorkout ? <Dumbbell className="h-5 w-5" /> : <PlayCircle className="h-5 w-5" />}
             </div>
             <div>
-              <p className="font-semibold text-[var(--color-text)]">Start Workout</p>
-              <p className="text-xs text-[var(--color-text-secondary)]">Pick a template and go</p>
+              <p className="font-semibold text-[var(--color-text)]">
+                {activeWorkout ? 'Resume Workout' : 'Start Workout'}
+              </p>
+              <p className="text-xs text-[var(--color-text-secondary)]">
+                {activeWorkout ? activeWorkout.name : 'Pick a template and go'}
+              </p>
             </div>
           </Card>
         </Link>
