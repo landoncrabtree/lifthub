@@ -149,11 +149,16 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
         brands?: string;
         nutriments?: {
           'energy-kcal_100g'?: number;
+          'energy-kcal_serving'?: number;
           proteins_100g?: number;
+          proteins_serving?: number;
           carbohydrates_100g?: number;
+          carbohydrates_serving?: number;
           fat_100g?: number;
+          fat_serving?: number;
         };
         serving_size?: string;
+        serving_quantity?: number;
       };
     };
 
@@ -165,28 +170,49 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
     const product = data.product;
     const nutriments = product.nutriments || {};
 
-    // Parse serving_size string (e.g. "30g" → 30, "g")
-    let servingSize = 100;
-    let servingUnit = 'g';
+    // Determine serving size for display
+    let servingSize = 1;
+    let servingUnit = 'serving';
     if (product.serving_size) {
-      const match = product.serving_size.match(/^([\d.]+)\s*(.*)$/);
+      // Try to extract a numeric value (e.g. "30g" → 30, "g")
+      const match = product.serving_size.match(/([\d.]+)\s*(g|ml|oz|fl\s*oz)\b/i);
       if (match) {
-        servingSize = parseFloat(match[1]) || 100;
-        servingUnit = match[2].trim() || 'g';
+        servingSize = parseFloat(match[1]) || 1;
+        servingUnit = match[2].trim().toLowerCase();
+      } else if (product.serving_quantity) {
+        servingSize = product.serving_quantity;
+        servingUnit = 'g';
       }
     }
 
-    const caloriesPer100 = nutriments['energy-kcal_100g'] || 0;
-    const proteinPer100 = nutriments.proteins_100g || 0;
-    const carbsPer100 = nutriments.carbohydrates_100g || 0;
-    const fatPer100 = nutriments.fat_100g || 0;
+    // Prefer _serving values (pre-calculated by OpenFoodFacts) over
+    // _100g + manual scaling, since serving_size strings are inconsistent
+    const hasServingData = nutriments['energy-kcal_serving'] != null;
 
-    // Scale nutrients to serving size
-    const factor = servingSize / 100;
-    const calories = Math.round(caloriesPer100 * factor * 10) / 10;
-    const protein_g = Math.round(proteinPer100 * factor * 10) / 10;
-    const carbs_g = Math.round(carbsPer100 * factor * 10) / 10;
-    const fat_g = Math.round(fatPer100 * factor * 10) / 10;
+    let calories: number;
+    let protein_g: number;
+    let carbs_g: number;
+    let fat_g: number;
+
+    if (hasServingData) {
+      calories = nutriments['energy-kcal_serving'] || 0;
+      protein_g = nutriments.proteins_serving || 0;
+      carbs_g = nutriments.carbohydrates_serving || 0;
+      fat_g = nutriments.fat_serving || 0;
+    } else {
+      // Fallback: scale _100g values by serving quantity
+      const qty = product.serving_quantity || 100;
+      const factor = qty / 100;
+      calories = (nutriments['energy-kcal_100g'] || 0) * factor;
+      protein_g = (nutriments.proteins_100g || 0) * factor;
+      carbs_g = (nutriments.carbohydrates_100g || 0) * factor;
+      fat_g = (nutriments.fat_100g || 0) * factor;
+    }
+
+    calories = Math.round(calories * 10) / 10;
+    protein_g = Math.round(protein_g * 10) / 10;
+    carbs_g = Math.round(carbs_g * 10) / 10;
+    fat_g = Math.round(fat_g * 10) / 10;
 
     const food = db
       .insert(foods)
