@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { sqlite } from '../db/connection.js';
 import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authMiddleware);

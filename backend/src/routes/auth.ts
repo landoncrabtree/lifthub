@@ -9,12 +9,14 @@ import {
   verifyToken,
   authMiddleware,
 } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 
 router.post('/register', async (req: Request, res: Response) => {
   try {
     const { email, username, password } = req.body;
+    logger.debug('POST /auth/register', { email, username });
 
     if (!email || !username || !password) {
       res.status(400).json({ error: 'Email, username, and password are required' });
@@ -53,7 +55,7 @@ router.post('/register', async (req: Request, res: Response) => {
       user: { id: newUser.id, email: newUser.email, username: newUser.username, created_at: newUser.created_at },
     });
   } catch (err) {
-    console.error('Register error:', err);
+    logger.error('Register error:', err);
     res.status(500).json({ error: 'Registration failed' });
   }
 });
@@ -61,6 +63,7 @@ router.post('/register', async (req: Request, res: Response) => {
 router.post('/login', async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    logger.debug('POST /auth/login', { email });
 
     if (!email || !password) {
       res.status(400).json({ error: 'Email and password are required' });
@@ -98,7 +101,7 @@ router.post('/login', async (req: Request, res: Response) => {
       },
     });
   } catch (err) {
-    console.error('Login error:', err);
+    logger.error('Login error:', err);
     res.status(500).json({ error: 'Login failed' });
   }
 });
@@ -106,6 +109,7 @@ router.post('/login', async (req: Request, res: Response) => {
 router.post('/refresh', (req: Request, res: Response) => {
   try {
     const { refreshToken } = req.body;
+    logger.debug('POST /auth/refresh');
     if (!refreshToken) {
       res.status(400).json({ error: 'Refresh token required' });
       return;

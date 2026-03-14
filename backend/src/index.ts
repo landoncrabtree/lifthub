@@ -3,6 +3,7 @@ import cors from 'cors';
 import { migrate } from './db/migrate.js';
 import { seed } from './db/seed.js';
 import { errorHandler } from './middleware/errorHandler.js';
+import { logger } from './utils/logger.js';
 import authRoutes from './routes/auth.js';
 import exerciseRoutes from './routes/exercises.js';
 import templateRoutes from './routes/templates.js';
@@ -40,7 +41,7 @@ app.get('/api/health', (_req, res) => {
 app.use(errorHandler);
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🏋️ Gym API running on http://localhost:${PORT}`);
+  logger.info(`🏋️ Gym API running on http://localhost:${PORT}`);
 });
 
 export default app;

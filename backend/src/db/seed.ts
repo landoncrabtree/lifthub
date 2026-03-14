@@ -1,6 +1,7 @@
 import db from './connection.js';
 import { exercises, foods } from './schema.js';
 import { isNull, eq } from 'drizzle-orm';
+import { logger } from '../utils/logger.js';
 
 const EXERCISES = [
   // Chest
@@ -291,7 +292,7 @@ function seedExercises() {
   const newExercises = EXERCISES.filter((ex) => !existing.has(ex.name));
 
   if (newExercises.length === 0) {
-    console.log(`Exercises up to date (${existing.size} built-in exercises exist)`);
+    logger.info(`Exercises up to date (${existing.size} built-in exercises exist)`);
     return;
   }
 
@@ -305,7 +306,7 @@ function seedExercises() {
     }))
   ).run();
 
-  console.log(`Seeded ${newExercises.length} new exercises (${existing.size} already existed)`);
+  logger.info(`Seeded ${newExercises.length} new exercises (${existing.size} already existed)`);
 }
 
 export function seedFoods() {
@@ -316,7 +317,7 @@ export function seedFoods() {
   const newFoods = FOODS.filter(([name]) => !existing.has(name));
 
   if (newFoods.length === 0) {
-    console.log(`Foods up to date (${existing.size} USDA foods exist)`);
+    logger.info(`Foods up to date (${existing.size} USDA foods exist)`);
     return;
   }
 
@@ -336,7 +337,7 @@ export function seedFoods() {
     }))
   ).run();
 
-  console.log(`Seeded ${newFoods.length} new foods (${existing.size} already existed)`);
+  logger.info(`Seeded ${newFoods.length} new foods (${existing.size} already existed)`);
 }
 
 export function seed() {

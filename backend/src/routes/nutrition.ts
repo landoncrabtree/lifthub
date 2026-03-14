@@ -3,6 +3,7 @@ import db, { sqlite } from '../db/connection.js';
 import { nutritionProfiles, foodLog, weightLog } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -61,6 +62,7 @@ function computeNutrition(params: {
 // POST /onboard — Create nutrition profile
 router.post('/onboard', (req: Request, res: Response) => {
   const { height_ft, height_in: inchPart, weight_lbs, age, sex, activity_level, goal } = req.body;
+  logger.debug('POST /nutrition/onboard', { sex, activity_level, goal });
 
   if (height_ft == null || inchPart == null || !weight_lbs || !age || !sex || !activity_level || !goal) {
     res.status(400).json({ error: 'All fields are required: height_ft, height_in, weight_lbs, age, sex, activity_level, goal' });
@@ -232,6 +234,7 @@ router.get('/recent', (req: Request, res: Response) => {
 // POST /log — Log a food entry
 router.post('/log', (req: Request, res: Response) => {
   const { date, meal_type, food_id, custom_meal_id, servings } = req.body;
+  logger.debug('POST /nutrition/log', { date, meal_type, food_id, custom_meal_id, servings });
 
   if (!date || !meal_type || (!food_id && !custom_meal_id)) {
     res.status(400).json({ error: 'date, meal_type, and either food_id or custom_meal_id are required' });
@@ -322,6 +325,7 @@ router.get('/weight-log', (req: Request, res: Response) => {
 // POST /weight-log — Log weight
 router.post('/weight-log', (req: Request, res: Response) => {
   const { date, weight_lbs, notes } = req.body;
+  logger.debug('POST /nutrition/weight-log', { date, weight_lbs });
 
   if (!date || weight_lbs == null) {
     res.status(400).json({ error: 'date and weight_lbs are required' });

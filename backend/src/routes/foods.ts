@@ -4,6 +4,8 @@ import { foods, customMeals } from '../db/schema.js';
 import { eq, and, or, like, isNull, asc, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 
+import { logger } from '../utils/logger.js';
+
 const router = Router();
 router.use(authMiddleware);
 
@@ -57,6 +59,7 @@ router.get('/custom-meals', (req: Request, res: Response) => {
 // Create custom meal
 router.post('/custom-meals', (req: Request, res: Response) => {
   const { name, description, calories, protein_g, carbs_g, fat_g } = req.body;
+  logger.debug('POST /foods/custom-meals', { name, calories });
 
   if (!name || calories == null) {
     res.status(400).json({ error: 'Name and calories are required' });
@@ -139,42 +142,111 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
     return;
   }
 
-  // Fetch from OpenFoodFacts
-  try {
-    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json`);
-    const data = (await response.json()) as {
-      status: number;
-      product?: {
-        product_name?: string;
-        brands?: string;
-        nutriments?: {
-          'energy-kcal_100g'?: number;
-          'energy-kcal_serving'?: number;
-          proteins_100g?: number;
-          proteins_serving?: number;
-          carbohydrates_100g?: number;
-          carbohydrates_serving?: number;
-          fat_100g?: number;
-          fat_serving?: number;
-        };
-        serving_size?: string;
-        serving_quantity?: number;
-      };
+  type OFFProduct = {
+    product_name?: string;
+    brands?: string;
+    nutriments?: {
+      'energy-kcal_100g'?: number;
+      'energy-kcal_serving'?: number;
+      proteins_100g?: number;
+      proteins_serving?: number;
+      carbohydrates_100g?: number;
+      carbohydrates_serving?: number;
+      fat_100g?: number;
+      fat_serving?: number;
     };
+    serving_size?: string;
+    serving_quantity?: number;
+  };
 
-    if (data.status !== 1 || !data.product) {
+  type OFFResponse = { status: number; product?: OFFProduct };
+
+  // Scanners expand UPC-E (8 digits) → UPC-A (12) → EAN-13 (13 with leading 0).
+  // OpenFoodFacts often has better data under the shorter UPC-E code.
+  // Try to reverse the expansion to find entries with serving data.
+  const codesToTry = [code];
+  const addVariant = (v: string) => {
+    if (v && !codesToTry.includes(v)) codesToTry.push(v);
+  };
+
+  // Strip leading zeros
+  addVariant(code.replace(/^0+/, ''));
+
+  // UPC-A to UPC-E compression (reverse the expansion scanners do)
+  // UPC-A: N XXXXX YYYYY C (12 digits), where N=number system, C=check digit
+  // We try to compress to UPC-E if the UPC-A has the right zero patterns
+  const upcA = code.length === 13 && code[0] === '0' ? code.slice(1) : // EAN-13 → UPC-A
+                code.length === 12 ? code : null;
+  if (upcA && (upcA[0] === '0' || upcA[0] === '1')) {
+    const mfr = upcA.slice(1, 6);  // manufacturer code (5 digits)
+    const prod = upcA.slice(6, 11); // product code (5 digits)
+    const check = upcA[11];
+    let upce: string | null = null;
+
+    if (mfr[2] === '0' && mfr[3] === '0' && mfr[4] === '0' && prod[0] === '0' && prod[1] === '0') {
+      // Rule: last code digit 0,1,2 → mfr=XX[d]00, prod=00YYY
+      upce = upcA[0] + mfr[0] + mfr[1] + prod[2] + prod[3] + prod[4] + mfr[2] + check;
+    } else if (mfr[3] === '0' && mfr[4] === '0' && prod[0] === '0' && prod[1] === '0' && prod[2] === '0') {
+      upce = upcA[0] + mfr[0] + mfr[1] + mfr[2] + prod[3] + prod[4] + '3' + check;
+    } else if (mfr[4] === '0' && prod[0] === '0' && prod[1] === '0' && prod[2] === '0' && prod[3] === '0') {
+      upce = upcA[0] + mfr[0] + mfr[1] + mfr[2] + mfr[3] + prod[4] + '4' + check;
+    } else if (prod[0] === '0' && prod[1] === '0' && prod[2] === '0' && prod[3] === '0' && parseInt(prod[4]) >= 5) {
+      upce = upcA[0] + mfr[0] + mfr[1] + mfr[2] + mfr[3] + mfr[4] + prod[4] + check;
+    }
+
+    if (upce) {
+      addVariant(upce);
+      addVariant(upce.replace(/^0+/, ''));
+    }
+  }
+
+  const hasServingInfo = (p: OFFProduct) =>
+    p.nutriments?.['energy-kcal_serving'] != null && p.serving_size != null;
+
+  // Fetch from OpenFoodFacts, trying barcode variants for better data
+  try {
+    let product: OFFProduct | null = null;
+
+    logger.debug('[BARCODE] input code:', code);
+    logger.debug('[BARCODE] variants to try:', codesToTry);
+
+    for (const tryCode of codesToTry) {
+      logger.debug('[BARCODE] trying:', tryCode);
+      const resp = await fetch(`https://world.openfoodfacts.org/api/v2/product/${tryCode}.json`);
+      const d = (await resp.json()) as OFFResponse;
+      if (d.status !== 1 || !d.product) {
+        logger.debug('[BARCODE]   not found');
+        continue;
+      }
+
+      const n = d.product.nutriments || {};
+      logger.debug('[BARCODE]   found:', d.product.product_name);
+      logger.debug('[BARCODE]   kcal_serving:', n['energy-kcal_serving'], 'kcal_100g:', n['energy-kcal_100g']);
+      logger.debug('[BARCODE]   serving_size:', d.product.serving_size, 'serving_quantity:', d.product.serving_quantity);
+      logger.debug('[BARCODE]   hasServingInfo:', hasServingInfo(d.product));
+
+      if (!product) product = d.product;
+
+      // If this variant has serving data, prefer it
+      if (hasServingInfo(d.product)) {
+        logger.debug('[BARCODE]   → using this variant (has serving data)');
+        product = d.product;
+        break;
+      }
+    }
+
+    if (!product) {
       res.status(404).json({ error: 'Product not found' });
       return;
     }
 
-    const product = data.product;
     const nutriments = product.nutriments || {};
+    logger.debug('[BARCODE] selected product:', product.product_name);
 
     // Determine serving size for display
     let servingSize = 1;
     let servingUnit = 'serving';
     if (product.serving_size) {
-      // Try to extract a numeric value (e.g. "30g" → 30, "g")
       const match = product.serving_size.match(/([\d.]+)\s*(g|ml|oz|fl\s*oz)\b/i);
       if (match) {
         servingSize = parseFloat(match[1]) || 1;
@@ -188,6 +260,7 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
     // Prefer _serving values (pre-calculated by OpenFoodFacts) over
     // _100g + manual scaling, since serving_size strings are inconsistent
     const hasServingData = nutriments['energy-kcal_serving'] != null;
+    logger.debug('[BARCODE] hasServingData:', hasServingData);
 
     let calories: number;
     let protein_g: number;
@@ -199,11 +272,13 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
       protein_g = nutriments.proteins_serving || 0;
       carbs_g = nutriments.carbohydrates_serving || 0;
       fat_g = nutriments.fat_serving || 0;
+      logger.debug('[BARCODE] using _serving path → calories:', calories);
     } else {
       // Fallback: scale _100g values by serving quantity
       const qty = product.serving_quantity || 100;
       const factor = qty / 100;
       calories = (nutriments['energy-kcal_100g'] || 0) * factor;
+      logger.debug('[BARCODE] using _100g path → qty:', qty, 'factor:', factor, 'calories:', calories);
       protein_g = (nutriments.proteins_100g || 0) * factor;
       carbs_g = (nutriments.carbohydrates_100g || 0) * factor;
       fat_g = (nutriments.fat_100g || 0) * factor;

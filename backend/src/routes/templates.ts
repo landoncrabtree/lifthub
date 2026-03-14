@@ -3,6 +3,7 @@ import db, { sqlite } from '../db/connection.js';
 import { templates, templateExercises, exercises } from '../db/schema.js';
 import { eq, and, desc, asc, getTableColumns, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -96,6 +97,7 @@ router.get('/:id', (req: Request, res: Response) => {
 // Create template
 router.post('/', (req: Request, res: Response) => {
   const { name, description, json_data } = req.body;
+  logger.debug('POST /templates', { name });
 
   if (!name) {
     res.status(400).json({ error: 'Name is required' });
@@ -165,6 +167,7 @@ router.delete('/:id', (req: Request, res: Response) => {
 
 // Start workout from template — uses raw sqlite for complex JOINs and progressive overload logic
 router.post('/:id/start', (req: Request, res: Response) => {
+  logger.debug('POST /templates/:id/start', { templateId: req.params.id });
   const template = sqlite
     .prepare('SELECT * FROM templates WHERE id = ? AND user_id = ?')
     .get(Number(req.params.id), req.userId!) as

@@ -3,6 +3,7 @@ import db from '../db/connection.js';
 import { exercises, templates, templateExercises, workoutSets } from '../db/schema.js';
 import { eq, and, or, like, isNull, asc } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -10,6 +11,7 @@ router.use(authMiddleware);
 // List exercises (built-in + user's custom)
 router.get('/', (req: Request, res: Response) => {
   const { q, muscle_group, equipment } = req.query;
+  logger.debug('GET /exercises', { q, muscle_group, equipment, userId: req.userId });
   const conditions = [or(isNull(exercises.user_id), eq(exercises.user_id, req.userId!))];
   if (q) conditions.push(like(exercises.name, `%${q}%`));
   if (muscle_group) conditions.push(eq(exercises.muscle_group, muscle_group as string));
@@ -42,6 +44,7 @@ router.get('/:id', (req: Request, res: Response) => {
 // Create custom exercise
 router.post('/', (req: Request, res: Response) => {
   const { name, muscle_group, equipment, description } = req.body;
+  logger.debug('POST /exercises', { name, muscle_group, equipment });
 
   if (!name || !muscle_group) {
     res.status(400).json({ error: 'Name and muscle_group are required' });
@@ -90,6 +93,7 @@ router.put('/:id', (req: Request, res: Response) => {
 // Delete custom exercise (cascades to template_exercises and workout_sets)
 router.delete('/:id', (req: Request, res: Response) => {
   const exerciseId = Number(req.params.id);
+  logger.debug('DELETE /exercises/:id', { exerciseId });
 
   const existing = db
     .select()

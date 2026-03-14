@@ -3,6 +3,7 @@ import db, { sqlite } from '../db/connection.js';
 import { workouts, workoutSets } from '../db/schema.js';
 import { eq, and, sql, desc, gte, lte } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
+import { logger } from '../utils/logger.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -60,6 +61,7 @@ router.get('/:id', (req: Request, res: Response) => {
 // Create ad-hoc workout
 router.post('/', (req: Request, res: Response) => {
   const { name, notes } = req.body;
+  logger.debug('POST /workouts', { name });
 
   if (!name) {
     res.status(400).json({ error: 'Name is required' });
@@ -77,6 +79,7 @@ router.post('/', (req: Request, res: Response) => {
 
 // Update workout (finish, edit notes)
 router.put('/:id', (req: Request, res: Response) => {
+  logger.debug('PUT /workouts/:id', { id: req.params.id, finished: req.body.finished });
   const existing = db.select().from(workouts)
     .where(and(eq(workouts.id, Number(req.params.id)), eq(workouts.user_id, req.userId!)))
     .get();
@@ -120,6 +123,7 @@ router.delete('/:id', (req: Request, res: Response) => {
 
 // Log a set (or batch)
 router.post('/:id/sets', (req: Request, res: Response) => {
+  logger.debug('POST /workouts/:id/sets', { workoutId: req.params.id, count: Array.isArray(req.body) ? req.body.length : 1 });
   const workout = db.select().from(workouts)
     .where(and(eq(workouts.id, Number(req.params.id)), eq(workouts.user_id, req.userId!)))
     .get();
@@ -151,6 +155,7 @@ router.post('/:id/sets', (req: Request, res: Response) => {
 
 // Update a set
 router.put('/:id/sets/:setId', (req: Request, res: Response) => {
+  logger.debug('PUT /workouts/:id/sets/:setId', { workoutId: req.params.id, setId: req.params.setId });
   const workout = db.select().from(workouts)
     .where(and(eq(workouts.id, Number(req.params.id)), eq(workouts.user_id, req.userId!)))
     .get();

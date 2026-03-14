@@ -23,7 +23,8 @@ backend/
       progress.ts      # Exercise progress history + summary stats
       foods.ts         # CRUD for foods + custom meals + barcode lookup
       nutrition.ts     # Nutrition profile, food log, weight log, charts
-    services/           # (empty — business logic lives in route handlers)
+    utils/
+      logger.ts        # Centralized logger with environment-aware debug mode
     types/
       index.ts         # Shared TypeScript interfaces, Express augmentation
     index.ts           # App entry: middleware, DB init, route mounting, server start
@@ -330,11 +331,14 @@ Recomputed on every profile update. Stored denormalized for fast reads.
 
 ### Barcode Lookup
 
-`GET /foods/barcode/:code` is a two-tier lookup:
-1. Check local `foods` table for a matching barcode.
-2. If not found, fetch from the OpenFoodFacts API v2, parse nutrients, scale to serving size, insert into the local DB with `source: 'openfoodfacts'`, and return.
-
-Cached locally so subsequent scans of the same barcode are instant.
+`GET /foods/barcode/:code` is a multi-tier lookup:
+1. Check local `foods` table for a matching barcode (instant cache hit).
+2. If not found, fetch from the OpenFoodFacts API v2 with **barcode variant fallback**:
+   - Barcode scanners expand UPC-E (8 digits) → UPC-A (12) → EAN-13 (13 with leading zero). OpenFoodFacts often has better data (serving info) under the shorter UPC-E code.
+   - The handler generates variants: original code, stripped leading zeros, and UPC-A→UPC-E compressed form.
+   - Tries each variant in order, preferring whichever entry has `energy-kcal_serving` and `serving_size` data.
+3. Nutrition extraction prefers `_serving` fields (pre-calculated by OpenFoodFacts). Falls back to `_100g * serving_quantity / 100` only when serving data is unavailable.
+4. Result is inserted into the local DB with `source: 'openfoodfacts'` for future cache hits.
 
 ### Progress Calculations
 
@@ -373,7 +377,7 @@ All route handlers use try/catch. Errors return JSON: `{ error: "message" }`. St
 
 ### Global Error Handler
 
-`errorHandler` middleware catches unhandled errors, logs them to stderr, and returns a generic 500 response. Registered last in the middleware chain.
+`errorHandler` middleware catches unhandled errors, logs them via `logger.error()`, and returns a generic 500 response. Registered last in the middleware chain.
 
 ## Conventions
 
@@ -405,7 +409,28 @@ Minimal validation in route handlers (required fields, string length). Zod is a 
 
 ### No Service Layer
 
-Business logic lives directly in route handlers. The `services/` directory exists but is empty. For the current scale, this avoids unnecessary abstraction. Complex operations (like workout start with progressive overload) use raw SQL in the route handler.
+Business logic lives directly in route handlers. For the current scale, this avoids unnecessary abstraction. Complex operations (like workout start with progressive overload) use raw SQL in the route handler.
+
+### Logging
+
+Centralized in `utils/logger.ts`. All backend code uses the `logger` object instead of raw `console.log`/`console.error`.
+
+```typescript
+import { logger } from '../utils/logger.js';
+
+logger.info('Server started');          // Always logs (lifecycle, important events)
+logger.warn('Deprecated endpoint');     // Always logs
+logger.error('Unhandled error:', err);  // Always logs
+logger.debug('GET /exercises', params); // Only logs when NODE_ENV=development
+```
+
+**Levels:**
+- `info` / `warn` / `error` — Always active. Used for server lifecycle, errors, and important events.
+- `debug` — Only active when `NODE_ENV=development`. Used for request tracing, parameter logging, and diagnostic output (e.g., barcode lookup flow). Silent in production.
+
+**Format:** `[ISO timestamp] [LEVEL] message ...args`
+
+**Convention:** Every mutating route handler (`POST`, `PUT`, `DELETE`) should have a `logger.debug()` call at entry with the route pattern and key parameters. Read-only `GET` routes only need debug logging when they have complex logic (e.g., barcode lookup with variant fallback).
 
 ## Docker
 
