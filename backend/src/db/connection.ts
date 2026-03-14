@@ -4,7 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import * as schema from './schema.js';
 
-const DB_PATH = process.env.DB_PATH || path.join(process.cwd(), 'data', 'gym.db');
+const DB_PATH = path.join(process.cwd(), 'data', 'gym.db');
 
 // Ensure data directory exists
 fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });

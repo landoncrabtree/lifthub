@@ -39,7 +39,7 @@ docker compose build
 docker compose up -d
 ```
 
-Assuming you have the domain pointing to your server's IP address (and firewall rules allow 80/443 traffic), the app will be available at `https://your-domain`.
+Assuming you have the domain pointing to your server's IP address (and firewall rules allow 8080/8443 traffic), the app will be available at `https://your-domain:8443`.
 
 ### CI/CD Example
 

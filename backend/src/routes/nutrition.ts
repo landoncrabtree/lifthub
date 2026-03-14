@@ -4,6 +4,11 @@ import { nutritionProfiles, foodLog, weightLog } from '../db/schema.js';
 import { eq, and, sql } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { clampOpt, truncateOpt, enumOpt, BOUNDS } from '../utils/validate.js';
+
+const ACTIVITY_LEVELS = ['sedentary', 'light', 'moderate', 'active', 'very_active'];
+const GOALS = ['lose', 'maintain', 'bulk'];
+const MEAL_TYPES = ['breakfast', 'lunch', 'dinner', 'snack'];
 
 const router = Router();
 router.use(authMiddleware);
@@ -69,17 +74,23 @@ router.post('/onboard', (req: Request, res: Response) => {
     return;
   }
 
-  const height_in = Number(height_ft) * 12 + Number(inchPart);
-  const computed = computeNutrition({ height_in, weight_lbs, age, sex, activity_level, goal });
+  const validSex = enumOpt(sex, ['male', 'female'], 'male');
+  const validActivity = enumOpt(activity_level, ACTIVITY_LEVELS, 'moderate');
+  const validGoal = enumOpt(goal, GOALS, 'maintain');
+  const height_in = Math.max(1, Math.min(Number(height_ft) * 12 + Number(inchPart), BOUNDS.heightIn.max));
+  const validWeight = Math.max(BOUNDS.bodyWeight.min, Math.min(Number(weight_lbs), BOUNDS.bodyWeight.max));
+  const validAge = Math.max(BOUNDS.age.min, Math.min(Number(age), BOUNDS.age.max));
+
+  const computed = computeNutrition({ height_in, weight_lbs: validWeight, age: validAge, sex: validSex, activity_level: validActivity, goal: validGoal });
 
   const profile = db.insert(nutritionProfiles).values({
     user_id: req.userId!,
     height_in,
-    weight_lbs,
-    age,
-    sex,
-    activity_level,
-    goal,
+    weight_lbs: validWeight,
+    age: validAge,
+    sex: validSex,
+    activity_level: validActivity,
+    goal: validGoal,
     bmr: computed.bmr,
     tdee: computed.tdee,
     calorie_target: computed.calorie_target,
@@ -241,7 +252,8 @@ router.post('/log', (req: Request, res: Response) => {
     return;
   }
 
-  const s = servings ?? 1;
+  const validMealType = enumOpt(meal_type, MEAL_TYPES, 'snack');
+  const s = Math.max(BOUNDS.servings.min, Math.min(Number(servings) || 1, BOUNDS.servings.max));
   let calories = 0;
   let protein_g = 0;
   let carbs_g = 0;
@@ -282,7 +294,7 @@ router.post('/log', (req: Request, res: Response) => {
   const entry = db.insert(foodLog).values({
     user_id: req.userId!,
     date,
-    meal_type,
+    meal_type: validMealType,
     food_id: food_id || null,
     custom_meal_id: custom_meal_id || null,
     servings: s,
@@ -332,14 +344,16 @@ router.post('/weight-log', (req: Request, res: Response) => {
     return;
   }
 
+  const validWeight = Math.max(BOUNDS.bodyWeight.min, Math.min(Number(weight_lbs), BOUNDS.bodyWeight.max));
+
   db.insert(weightLog).values({
     user_id: req.userId!,
     date,
-    weight_lbs,
-    notes: notes || null,
+    weight_lbs: validWeight,
+    notes: truncateOpt(notes, BOUNDS.stringShort),
   }).onConflictDoUpdate({
     target: [weightLog.user_id, weightLog.date],
-    set: { weight_lbs, notes: notes || null },
+    set: { weight_lbs: validWeight, notes: truncateOpt(notes, BOUNDS.stringShort) },
   }).run();
 
   const entry = db.select().from(weightLog)

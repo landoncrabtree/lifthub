@@ -4,6 +4,9 @@ import { workouts, workoutSets } from '../db/schema.js';
 import { eq, and, sql, desc, gte, lte } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { clampOpt, truncateOpt, enumOpt, BOUNDS } from '../utils/validate.js';
+
+const SET_TYPES = ['normal', 'warmup', 'dropset', 'failure', 'superset'];
 
 const router = Router();
 router.use(authMiddleware);
@@ -135,18 +138,23 @@ router.post('/:id/sets', (req: Request, res: Response) => {
 
   const sets = Array.isArray(req.body) ? req.body : [req.body];
 
+  if (sets.length > 100) {
+    res.status(400).json({ error: 'Too many sets (max 100)' });
+    return;
+  }
+
   const results = sets.map((s: Record<string, unknown>) =>
     db.insert(workoutSets).values({
       workout_id: workout.id,
       exercise_id: s.exercise_id as number,
       set_index: (s.set_index as number) || 0,
-      set_type: (s.set_type as string) || 'normal',
-      reps: (s.reps as number) || null,
-      weight: (s.weight as number) || null,
-      rpe: (s.rpe as number) || null,
+      set_type: enumOpt(s.set_type, SET_TYPES, 'normal'),
+      reps: clampOpt(s.reps, BOUNDS.reps.min, BOUNDS.reps.max),
+      weight: clampOpt(s.weight, BOUNDS.weight.min, BOUNDS.weight.max),
+      rpe: clampOpt(s.rpe, BOUNDS.rpe.min, BOUNDS.rpe.max),
       to_failure: s.to_failure ? 1 : 0,
       completed: s.completed ? 1 : 0,
-      notes: (s.notes as string) || null,
+      notes: truncateOpt(s.notes, BOUNDS.stringShort),
     }).returning().get()
   );
 
@@ -177,13 +185,13 @@ router.put('/:id/sets/:setId', (req: Request, res: Response) => {
   const { reps, weight, rpe, to_failure, completed, set_type, notes } = req.body;
 
   const updateData: Record<string, unknown> = {};
-  if (reps != null) updateData.reps = reps;
-  if (weight != null) updateData.weight = weight;
-  if (rpe != null) updateData.rpe = rpe;
+  if (reps != null) updateData.reps = clampOpt(reps, BOUNDS.reps.min, BOUNDS.reps.max);
+  if (weight != null) updateData.weight = clampOpt(weight, BOUNDS.weight.min, BOUNDS.weight.max);
+  if (rpe != null) updateData.rpe = clampOpt(rpe, BOUNDS.rpe.min, BOUNDS.rpe.max);
   if (to_failure !== undefined) updateData.to_failure = to_failure ? 1 : 0;
   if (completed !== undefined) updateData.completed = completed ? 1 : 0;
-  if (set_type != null) updateData.set_type = set_type;
-  if (notes != null) updateData.notes = notes;
+  if (set_type != null) updateData.set_type = enumOpt(set_type, SET_TYPES, 'normal');
+  if (notes != null) updateData.notes = truncateOpt(notes, BOUNDS.stringShort);
 
   if (Object.keys(updateData).length > 0) {
     db.update(workoutSets).set(updateData).where(eq(workoutSets.id, Number(req.params.setId))).run();

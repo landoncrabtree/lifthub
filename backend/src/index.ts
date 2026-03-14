@@ -16,7 +16,11 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3001;
 
 // Middleware
-app.use(cors());
+const domain = process.env.DOMAIN;
+app.use(cors({
+  origin: domain ? `https://${domain}` : true,
+  credentials: true,
+}));
 app.use(express.json({ limit: '1mb' }));
 
 // Initialize database

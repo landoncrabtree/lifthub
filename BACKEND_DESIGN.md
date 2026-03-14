@@ -62,7 +62,7 @@ backend/
 
 ### SQLite with WAL Mode
 
-Single-file database at `$DB_PATH` (default: `./data/gym.db`). Connection established in `connection.ts` with three performance pragmas:
+Single-file database at `./data/gym.db` (relative to working directory). Connection established in `connection.ts` with three performance pragmas:
 
 ```sql
 PRAGMA journal_mode = WAL;      -- Write-Ahead Logging for concurrent reads
@@ -463,8 +463,20 @@ volumes:
 
 ## Environment Variables
 
+### Production
+
 | Variable | Default | Description |
 |---|---|---|
 | `PORT` | 3001 | HTTP listen port |
-| `DB_PATH` | `./data/gym.db` | SQLite database file path |
-| `JWT_SECRET` | `dev-secret-change-me` | JWT signing secret (must be set in production) |
+| `NODE_ENV` | `production` | Node environment (development or production) |
+| `JWT_SECRET` | — | JWT signing secret |
+| `DOMAIN` | — | Domain name for SSL certificates and CORS origin |
+
+### Development
+
+| Variable | Default | Description |
+|---|---|---|
+| `PORT` | 3001 | HTTP listen port |
+| `NODE_ENV` | `development` | Node environment (development or production) |
+| `JWT_SECRET` | `dev-secret-change-me` | JWT signing secret |
+| `DOMAIN` | `localhost` and `*` | Domain name for SSL certificates and CORS origin |

@@ -6,7 +6,7 @@ import { users } from '../db/schema.js';
 import {
   generateAccessToken,
   generateRefreshToken,
-  verifyToken,
+  verifyRefreshToken,
   authMiddleware,
 } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
@@ -115,7 +115,7 @@ router.post('/refresh', (req: Request, res: Response) => {
       return;
     }
 
-    const payload = verifyToken(refreshToken);
+    const payload = verifyRefreshToken(refreshToken);
     const newAccessToken = generateAccessToken(payload.userId);
     const newRefreshToken = generateRefreshToken(payload.userId);
 

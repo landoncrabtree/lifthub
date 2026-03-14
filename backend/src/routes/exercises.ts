@@ -4,6 +4,7 @@ import { exercises, templates, templateExercises, workoutSets } from '../db/sche
 import { eq, and, or, like, isNull, asc } from 'drizzle-orm';
 import { authMiddleware } from '../middleware/auth.js';
 import { logger } from '../utils/logger.js';
+import { truncateOpt, BOUNDS } from '../utils/validate.js';
 
 const router = Router();
 router.use(authMiddleware);
@@ -53,7 +54,13 @@ router.post('/', (req: Request, res: Response) => {
 
   const exercise = db
     .insert(exercises)
-    .values({ user_id: req.userId!, name, muscle_group, equipment: equipment || null, description: description || null })
+    .values({
+      user_id: req.userId!,
+      name: String(name).slice(0, BOUNDS.stringShort),
+      muscle_group: String(muscle_group).slice(0, BOUNDS.stringShort),
+      equipment: truncateOpt(equipment, BOUNDS.stringShort),
+      description: truncateOpt(description, BOUNDS.stringLong),
+    })
     .returning()
     .get();
 
@@ -75,10 +82,10 @@ router.put('/:id', (req: Request, res: Response) => {
 
   const { name, muscle_group, equipment, description } = req.body;
   const updates: Partial<typeof exercises.$inferInsert> = {};
-  if (name !== undefined) updates.name = name;
-  if (muscle_group !== undefined) updates.muscle_group = muscle_group;
-  if (equipment !== undefined) updates.equipment = equipment;
-  if (description !== undefined) updates.description = description;
+  if (name !== undefined) updates.name = String(name).slice(0, BOUNDS.stringShort);
+  if (muscle_group !== undefined) updates.muscle_group = String(muscle_group).slice(0, BOUNDS.stringShort);
+  if (equipment !== undefined) updates.equipment = truncateOpt(equipment, BOUNDS.stringShort);
+  if (description !== undefined) updates.description = truncateOpt(description, BOUNDS.stringLong);
 
   const updated = db
     .update(exercises)
