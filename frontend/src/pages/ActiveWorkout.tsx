@@ -111,7 +111,6 @@ export default function ActiveWorkout() {
         weight,
         reps,
       });
-      // Invalidate the parent workout cache so navigating away/back shows fresh data
       invalidateCache(`/workouts/${id}`);
       invalidateCache('/workouts');
 
@@ -129,6 +128,27 @@ export default function ActiveWorkout() {
       if (hasMoreSets && setRow.restSeconds) {
         startTimer(setRow.restSeconds, exerciseName, Number(id));
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update set');
+    }
+  }
+
+  async function uncompleteSet(setRow: SetRow) {
+    try {
+      await put<WorkoutSet>(`/workouts/${id}/sets/${setRow.id}`, {
+        completed: false,
+      });
+      invalidateCache(`/workouts/${id}`);
+      invalidateCache('/workouts');
+
+      setSets((prev) =>
+        prev.map((s) =>
+          s.id === setRow.id
+            ? { ...s, completed: false, inputWeight: String(s.weight ?? ''), inputReps: String(s.reps ?? '') }
+            : s,
+        ),
+      );
+      hapticLight();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update set');
     }
@@ -277,7 +297,9 @@ export default function ActiveWorkout() {
                 </div>
                 <div className="col-span-2 flex justify-end">
                   {setRow.completed ? (
-                    <CheckCircle2 className="h-5 w-5 text-brand-500" />
+                    <button onClick={() => uncompleteSet(setRow)} className="cursor-pointer">
+                      <CheckCircle2 className="h-5 w-5 text-brand-500" />
+                    </button>
                   ) : (
                     <Button size="sm" variant="outline" onClick={() => completeSet(setRow)}>
                       <CheckCircle2 className="h-4 w-4" />
