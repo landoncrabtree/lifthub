@@ -65,7 +65,7 @@ SQLite with WAL mode, foreign keys enabled, and 5s busy timeout. **Drizzle ORM**
 - `workout_sets` — weight, reps, rpe, set_type, completed flag
 - `nutrition_profiles` — height, weight, age, sex, activity level, macros
 - `foods` — name, brand, serving size, macros, source (custom/usda/openfoodfacts)
-- `custom_meals` / `custom_meal_items` — user-defined meal presets
+- `custom_meals` — user-defined meal presets
 - `food_log` — daily food intake entries
 - `weight_log` — body weight tracking
 

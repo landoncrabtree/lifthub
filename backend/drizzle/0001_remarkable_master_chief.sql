@@ -1,0 +1,1 @@
+DROP TABLE `custom_meal_items`;

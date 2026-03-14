@@ -140,14 +140,6 @@ export const customMeals = sqliteTable('custom_meals', {
   index('idx_custom_meals_user').on(table.user_id),
 ]);
 
-// ─── Custom Meal Items ──────────────────────────────────────
-export const customMealItems = sqliteTable('custom_meal_items', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  meal_id: integer('meal_id').notNull().references(() => customMeals.id, { onDelete: 'cascade' }),
-  food_id: integer('food_id').notNull().references(() => foods.id),
-  servings: real('servings').notNull().default(1),
-});
-
 // ─── Food Log ───────────────────────────────────────────────
 export const foodLog = sqliteTable('food_log', {
   id: integer('id').primaryKey({ autoIncrement: true }),

@@ -94,7 +94,6 @@ Routes choose whichever is appropriate per operation. Both hit the same underlyi
 | `nutrition_profiles` | User nutrition targets | user_id (unique), height, weight, age, sex, activity, goal, BMR, TDEE, macros |
 | `foods` | Food database | user_id (null=global/USDA), barcode, macros, source (custom/openfoodfacts/usda) |
 | `custom_meals` | User-defined meals | user_id, macros |
-| `custom_meal_items` | Meal-food junction | meal_id (CASCADE), food_id, servings |
 | `food_log` | Daily food intake | user_id, date, meal_type, food_id/custom_meal_id, servings, macros |
 | `weight_log` | Body weight tracking | user_id+date (unique), weight_lbs |
 
@@ -115,7 +114,6 @@ Composite and single-column indexes on common query paths:
 
 - `template_exercises.template_id` → CASCADE on delete (deleting a template removes its exercise rows)
 - `workout_sets.workout_id` → CASCADE on delete (deleting a workout removes its sets)
-- `custom_meal_items.meal_id` → CASCADE on delete
 - `template_exercises.exercise_id` → **no cascade** (exercises cannot be deleted without explicit cleanup)
 - `workout_sets.exercise_id` → **no cascade** (same)
 
