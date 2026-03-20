@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { X, Download, Share } from 'lucide-react';
+import { isStandalonePWA } from '@/lib/utils';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -10,11 +11,6 @@ function isIOS(): boolean {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as unknown as { MSStream?: unknown }).MSStream;
 }
 
-function isStandalone(): boolean {
-  return window.matchMedia('(display-mode: standalone)').matches
-    || (navigator as unknown as { standalone?: boolean }).standalone === true;
-}
-
 export default function PWAInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showIOSPrompt, setShowIOSPrompt] = useState(false);
@@ -22,7 +18,7 @@ export default function PWAInstallPrompt() {
 
   useEffect(() => {
     // Don't show if already installed or previously dismissed
-    if (isStandalone()) return;
+    if (isStandalonePWA()) return;
     if (localStorage.getItem('pwa-install-dismissed')) return;
 
     if (isIOS()) {
@@ -57,7 +53,7 @@ export default function PWAInstallPrompt() {
     dismiss();
   }
 
-  if (dismissed || isStandalone()) return null;
+  if (dismissed || isStandalonePWA()) return null;
 
   // Android / Chrome install prompt
   if (deferredPrompt) {

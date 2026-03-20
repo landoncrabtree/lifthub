@@ -34,3 +34,13 @@ export function parseUTC(dateStr: string): Date {
   // SQLite format: "2026-03-09 22:31:00" → append Z for UTC
   return new Date(dateStr.replace(' ', 'T') + 'Z');
 }
+
+/**
+ * Detect whether the app is currently running as an installed standalone PWA.
+ */
+export function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false;
+
+  return window.matchMedia('(display-mode: standalone)').matches
+    || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}

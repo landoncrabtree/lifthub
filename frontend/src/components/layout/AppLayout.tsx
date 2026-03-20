@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type CSSProperties } from 'react';
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -19,6 +19,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useTimer } from '@/contexts/TimerContext';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+import { isStandalonePWA } from '@/lib/utils';
 
 // ─── Navigation structure ─────────────────────────────────────────────────────
 
@@ -295,9 +296,13 @@ function MobileNav() {
 
 export default function AppLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isStandalone = isStandalonePWA();
+  const layoutStyle = isStandalone
+    ? ({ '--app-safe-area-bottom': '0px' } as CSSProperties)
+    : undefined;
 
   return (
-    <div className="flex h-[100dvh] flex-col bg-[var(--color-bg)]">
+    <div className="flex h-[100dvh] flex-col bg-[var(--color-bg)]" style={layoutStyle}>
       {/* Top navbar */}
       <header
         className="flex h-14 shrink-0 items-center justify-between border-b bg-[var(--color-bg)] px-4"
