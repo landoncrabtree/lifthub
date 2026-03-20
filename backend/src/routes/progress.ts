@@ -88,7 +88,7 @@ router.get('/summary', (req: Request, res: Response) => {
   for (let i = 0; i < recentDates.length; i++) {
     const expectedDate = new Date(today);
     expectedDate.setDate(expectedDate.getDate() - i);
-    const expected = expectedDate.toISOString().split('T')[0];
+    const expected = `${expectedDate.getFullYear()}-${String(expectedDate.getMonth() + 1).padStart(2, '0')}-${String(expectedDate.getDate()).padStart(2, '0')}`;
 
     if (recentDates[i].workout_date === expected) {
       streak++;
@@ -96,7 +96,7 @@ router.get('/summary', (req: Request, res: Response) => {
       // If today doesn't have a workout, check starting from yesterday
       const yesterday = new Date(today);
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
+      const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
 
       if (recentDates[i].workout_date === yesterdayStr) {
         streak++;

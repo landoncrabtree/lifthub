@@ -165,7 +165,8 @@ router.put('/profile', (req: Request, res: Response) => {
 
 // GET /daily?date=YYYY-MM-DD — Food log entries + totals for a date
 router.get('/daily', (req: Request, res: Response) => {
-  const date = (req.query.date as string) || new Date().toISOString().split('T')[0];
+  const now = new Date();
+  const date = (req.query.date as string) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
   const entries = sqlite.prepare(
     `SELECT fl.*, COALESCE(f.name, cm.name) as food_name

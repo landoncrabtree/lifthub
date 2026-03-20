@@ -9,6 +9,18 @@ export function cn(
 }
 
 /**
+ * Format a Date as YYYY-MM-DD in the device's local timezone.
+ * Use this instead of date.toISOString().slice(0,10) which converts to UTC
+ * and causes day-boundary mismatches for non-UTC users.
+ */
+export function formatLocalDate(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
  * Parse a UTC timestamp from the backend (SQLite CURRENT_TIMESTAMP format)
  * into a proper Date object. SQLite returns "YYYY-MM-DD HH:MM:SS" without
  * a timezone indicator — this ensures it's treated as UTC.

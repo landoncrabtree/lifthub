@@ -32,7 +32,7 @@ function WorkoutHeatmap({ workouts }: { workouts: { date: string }[] }) {
     for (let i = totalDays - 1; i >= 0; i--) {
       const d = new Date(today);
       d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
       result.push({ key, count: countMap.get(key) || 0 });
     }
     return result;

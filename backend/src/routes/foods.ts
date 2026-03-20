@@ -135,10 +135,21 @@ router.delete('/custom-meals/:id', (req: Request, res: Response) => {
 router.get('/barcode/:code', async (req: Request, res: Response) => {
   const { code } = req.params;
 
-  // Check local cache first
-  const cached = db.select().from(foods).where(eq(foods.barcode, code)).get();
+  // Check if this user already has this barcode saved
+  const cached = db.select().from(foods).where(
+    and(eq(foods.barcode, code), eq(foods.user_id, req.userId!))
+  ).get();
   if (cached) {
     res.json(cached);
+    return;
+  }
+
+  // Check global cache (from USDA seed or legacy null-user entries)
+  const globalCached = db.select().from(foods).where(
+    and(eq(foods.barcode, code), isNull(foods.user_id))
+  ).get();
+  if (globalCached) {
+    res.json(globalCached);
     return;
   }
 
@@ -292,7 +303,7 @@ router.get('/barcode/:code', async (req: Request, res: Response) => {
     const food = db
       .insert(foods)
       .values({
-        user_id: null,
+        user_id: req.userId!,
         barcode: code,
         name: product.product_name || 'Unknown Product',
         brand: product.brands || null,
