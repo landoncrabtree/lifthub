@@ -139,7 +139,7 @@ function RestTimerPill() {
     <div
       onClick={() => workoutId && navigate(`/workout/${workoutId}`)}
       role={workoutId ? 'link' : undefined}
-      className={`fixed bottom-20 right-4 z-40 md:bottom-6 flex items-center gap-3 rounded-full border bg-[var(--color-bg)] px-4 py-2 shadow-lg ${
+      className={`fixed bottom-[var(--mobile-floating-offset)] right-4 z-40 md:bottom-6 flex items-center gap-3 rounded-full border bg-[var(--color-bg)] px-4 py-2 shadow-lg ${
         urgent ? 'animate-pulse border-red-500' : 'border-brand-500'
       } ${workoutId ? 'cursor-pointer' : ''}`}
     >
@@ -261,11 +261,15 @@ function MobileNav() {
   ];
 
   return (
-    <nav className="shrink-0 border-t bg-[var(--color-bg)] md:hidden">
-      <div className="flex"
+    <nav
+      className="shrink-0 border-t bg-[var(--color-bg)] md:hidden"
+      style={{ paddingBottom: 'var(--app-safe-area-bottom)' }}
+    >
+      <div
+        className="flex"
         style={{
-          paddingLeft: 'env(safe-area-inset-left, 0px)',
-          paddingRight: 'env(safe-area-inset-right, 0px)',
+          paddingLeft: 'var(--app-safe-area-left)',
+          paddingRight: 'var(--app-safe-area-right)',
         }}
       >
         {mobileItems.map((item) => (
